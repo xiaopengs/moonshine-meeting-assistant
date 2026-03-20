@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moonshine 会议助手</title>
+  <style>
+    /* ===== 全局重置 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --radius: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ===== 标题栏 ===== */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+    }
+    header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      -webkit-app-region: no-drag;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      -webkit-app-region: no-drag;
+    }
+    .spacer { flex: 1; -webkit-app-region: drag; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+      -webkit-app-region: no-drag;
+    }
+    .status-dot.running { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.error { background: var(--red); }
+    #statusText { font-size: 12px; color: var(--muted); -webkit-app-region: no-drag; }
+
+    /* ===== 主布局 ===== */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ===== 左侧面板 ===== */
+    aside {
+      width: 280px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .panel-section {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* 设备选择 */
+    select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 7px 10px;
+      font-size: 13px;
+      margin-bottom: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus { border-color: var(--accent); }
+    select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* 开关行 */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .toggle-label { font-size: 13px; color: var(--text); }
+    .toggle {
+      position: relative; width: 36px; height: 20px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0;
+      background: var(--border); border-radius: 20px;
+      transition: background 0.2s; cursor: pointer;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: white; left: 3px; top: 3px;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* 控制按钮 */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      padding: 14px 16px;
+      margin-top: auto;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-start {
+      background: var(--green);
+      color: white;
+    }
+    .btn-start:hover:not(:disabled) { opacity: 0.85; }
+    .btn-stop {
+      background: var(--red);
+      color: white;
+    }
+    .btn-stop:hover:not(:disabled) { opacity: 0.85; }
+    .btn-save {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-save:hover:not(:disabled) { opacity: 0.85; }
+
+    /* ===== 右侧：字幕区 ===== */
+    #transcriptPanel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .transcript-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .transcript-header span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .transcript-count {
+      background: var(--accent);
+      color: white;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    #transcriptLog {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .entry {
+      display: flex;
+      gap: 10px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .entry-icon {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .entry-icon.mic {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+    }
+    .entry-icon.loopback {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+    }
+    .entry-icon.system {
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--yellow);
+    }
+
+    .entry-body { flex: 1; }
+    .entry-source {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .entry-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .entry-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 48px; opacity: 0.3; }
+    .empty-state p { font-size: 14px; }
+
+    /* ===== 滚动条 ===== */
+    #transcriptLog::-webkit-scrollbar { width: 4px; }
+    #transcriptLog::-webkit-scrollbar-track { background: transparent; }
+    #transcriptLog::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ===== 日志面板（底部可折叠）====== */
+    #logPanel {
+      border-top: 1px solid var(--border);
+      background: #0a0d10;
+      max-height: 120px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: none;
+    }
+    #logPanel.visible { display: block; }
+    #logContent {
+      padding: 8px 16px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+      font-size: 11px;
+      color: #7ee787;
+      line-height: 1.8;
+    }
+    .log-error { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- 标题栏 -->
+<header>
+  <h1>🌙 Moonshine 会议助手</h1>
+  <span class="badge">v1.0.0</span>
+  <div class="spacer"></div>
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">待机</span>
+</header>
+
+<!-- 主界面 -->
+<main>
+
+  <!-- 左侧：设备控制 -->
+  <aside>
+    <div class="panel-section">
+      <div class="panel-title">🎤 麦克风设备</div>
+      <select id="micSelect" disabled>
+        <option>加载中...</option>
+      </select>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">🔊 系统内录设备</div>
+      <select id="loopbackSelect" disabled>
+        <option>加载中...</option>
+      </select>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">⚙️ 选项</div>
+      <div class="toggle-row">
+        <span class="toggle-label">启用 VAD（人声检测）</span>
+        <label class="toggle">
+          <input type="checkbox" id="vadToggle" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">双路混合转写</span>
+        <label class="toggle">
+          <input type="checkbox" id="dualToggle" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 实时统计 -->
+    <div class="panel-section">
+      <div class="panel-title">📊 本次会议</div>
+      <div style="font-size:12px; color:var(--muted); line-height:1.9;">
+        <div>麦克风转写：<span id="micCount" style="color:var(--green)">0</span> 条</div>
+        <div>系统内录：<span id="loopCount" style="color:var(--accent)">0</span> 条</div>
+        <div>总字数：<span id="charCount">0</span></div>
+        <div>开始时间：<span id="startTime">--:--:--</span></div>
+      </div>
+    </div>
+
+    <!-- 按钮 -->
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart">▶ 开始</button>
+      <button class="btn btn-stop" id="btnStop" disabled>■ 停止</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save" id="btnSave">💾 保存笔记</button>
+    </div>
+  </aside>
+
+  <!-- 右侧：字幕 -->
+  <div id="transcriptPanel">
+    <div class="transcript-header">
+      <span>实时字幕</span>
+      <span class="transcript-count" id="totalCount">0</span>
+      <div style="flex:1"></div>
+      <span id="elapsedTime" style="color:var(--muted);font-size:12px;">00:00:00</span>
+    </div>
+    <div id="transcriptLog">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">🎙️</div>
+        <p>选择设备后点击「开始」启动转写</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- 日志面板 -->
+<div id="logPanel">
+  <div id="logContent"></div>
+</div>
+
+<script>
+  // ===== 全局状态 =====
+  let isRunning = false;
+  let entries = [];
+  let micC = 0, loopC = 0, chars = 0;
+  let timerInterval = null;
+  let startTs = null;
+
+  // ===== DOM =====
+  const micSel     = document.getElementById('micSelect');
+  const loopSel    = document.getElementById('loopbackSelect');
+  const vadToggle  = document.getElementById('vadToggle');
+  const dualToggle = document.getElementById('dualToggle');
+  const btnStart   = document.getElementById('btnStart');
+  const btnStop    = document.getElementById('btnStop');
+  const btnSave    = document.getElementById('btnSave');
+  const logPanel   = document.getElementById('logPanel');
+  const logContent = document.getElementById('logContent');
+  const tlog       = document.getElementById('transcriptLog');
+  const emptyState = document.getElementById('emptyState');
+
+  // ===== 加载设备列表 =====
+  async function loadDevices() {
+    const devs = await window.electronAPI.getAudioDevices();
+    micSel.innerHTML = '';
+    loopSel.innerHTML = '';
+
+    if (devs.error) {
+      micSel.innerHTML = '<option>' + devs.error + '</option>';
+      loopSel.innerHTML = '<option>' + devs.error + '</option>';
+      return;
+    }
+
+    // 分组
+    const inputs = devs.filter(d => d.maxInputChannels > 0);
+    let micFound = false, loopFound = false;
+
+    for (const d of inputs) {
+      const label = `${d.index}: ${d.name}`;
+      const opt1 = new Option(label, d.index);
+      const opt2 = new Option(label, d.index);
+      micSel.add(opt1);
+      // 尝试自动识别内录设备（名称含 loopback / stereo mix / 内录 / 立体声混音）
+      const lower = d.name.toLowerCase();
+      if (!loopFound && (
+        lower.includes('loopback') ||
+        lower.includes('stereo mix') ||
+        lower.includes('内录') ||
+        lower.includes('立体声混音') ||
+        lower.includes('what u hear') ||
+        lower.includes('wasapi')
+      )) {
+        loopSel.add(new Option(label + ' ⭐', d.index), 0);
+        loopFound = true;
+      } else {
+        loopSel.add(opt2);
+      }
+    }
+
+    micSel.disabled = false;
+    loopSel.disabled = false;
+    if (micSel.options.length > 0) micSel.selectedIndex = 0;
+    if (loopSel.options.length > 0) loopSel.selectedIndex = 0;
+
+    addLog('设备加载完毕，共 ' + inputs.length + ' 个输入设备');
+  }
+
+  // ===== 事件绑定 =====
+  btnStart.addEventListener('click', async () => {
+    if (isRunning) return;
+    const config = {
+      micDeviceIndex: parseInt(micSel.value) || -1,
+      loopbackDeviceIndex: parseInt(loopSel.value) || -1,
+      vadEnabled: vadToggle.checked,
+      dualEnabled: dualToggle.checked,
+    };
+    addLog('启动转写，配置=' + JSON.stringify(config));
+    const res = await window.electronAPI.startTranscription(config);
+    if (res.ok) {
+      setRunning(true);
+      startTimer();
+    }
+  });
+
+  btnStop.addEventListener('click', async () => {
+    await window.electronAPI.stopTranscription();
+    setRunning(false);
+    stopTimer();
+  });
+
+  btnSave.addEventListener('click', async () => {
+    if (entries.length === 0) {
+      alert('还没有转写内容，先开始转写再保存');
+      return;
+    }
+    const md = buildMarkdown();
+    const ts = new Date();
+    const filename = `会议记录_${ts.getFullYear()}${(ts.getMonth()+1).toString().padStart(2,'0')}${ts.getDate().toString().padStart(2,'0')}_${ts.getHours().toString().padStart(2,'0')}${ts.getMinutes().toString().padStart(2,'0')}.md`;
+    const res = await window.electronAPI.saveSubtitle({ filename, content: md });
+    if (res.ok) {
+      addLog('文件已保存: ' + res.path);
+      alert('已保存到：\n' + res.path);
+    }
+  });
+
+  // ===== Electron 事件 =====
+  window.electronAPI.onTranscript((msg) => {
+    if (!msg || !msg.text) return;
+    appendEntry(msg);
+  });
+
+  window.electronAPI.onLog((txt) => {
+    addLog(txt);
+  });
+
+  window.electronAPI.onStatus((s) => {
+    if (s === 'stopped') {
+      setRunning(false);
+      stopTimer();
+    }
+  });
+
+  // ===== 转写条目 =====
+  function appendEntry(msg) {
+    entries.push(msg);
+    if (emptyState) emptyState.style.display = 'none';
+
+    const source = msg.source || 'mic';
+    const icon = source === 'mic' ? '🎤' : (source === 'loopback' ? '🔊' : '💬');
+    const label = source === 'mic' ? '麦克风' : (source === 'loopback' ? '系统内录' : '混合');
+    const color = source === 'mic' ? 'mic' : (source === 'loopback' ? 'loopback' : 'system');
+
+    const t = new Date();
+    const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
+
+    const el = document.createElement('div');
+    el.className = 'entry';
+    el.innerHTML = `
+      <div class="entry-icon ${color}">${icon}</div>
+      <div class="entry-body">
+        <div class="entry-source">${label}</div>
+        <div class="entry-text">${escapeHtml(msg.text)}</div>
+        <div class="entry-time">${time}</div>
+      </div>`;
+    tlog.appendChild(el);
+    tlog.scrollTop = tlog.scrollHeight;
+
+    // 统计
+    if (source === 'mic') micC++;
+    else if (source === 'loopback') loopC++;
+    else { micC++; loopC++; }
+    chars += msg.text.length;
+    refreshStats();
+  }
+
+  function buildMarkdown() {
+    let md = `# Moonshine 会议记录\n\n`;
+    md += `> 自动生成 | ${new Date().toLocaleString('zh-CN')}\n\n`;
+    md += `---\n\n`;
+    for (const e of entries) {
+      const t = new Date(e.ts || Date.now());
+      const ts = t.toLocaleTimeString('zh-CN');
+      const src = e.source === 'mic' ? '🎤 麦克风' : (e.source === 'loopback' ? '🔊 系统内录' : '💬 混合');
+      md += `**${src}** [${ts}]\n\n${e.text}\n\n---\n\n`;
+    }
+    md += `*由 Moonshine 会议助手 自动转写*\n`;
+    return md;
+  }
+
+  // ===== 状态管理 =====
+  function setRunning(r) {
+    isRunning = r;
+    btnStart.disabled = r;
+    btnStop.disabled  = !r;
+    micSel.disabled   = r;
+    loopSel.disabled  = r;
+    document.getElementById('statusDot').className = 'status-dot' + (r ? ' running' : '');
+    document.getElementById('statusText').textContent = r ? '转写中…' : '待机';
+  }
+
+  function startTimer() {
+    startTs = Date.now();
+    timerInterval = setInterval(() => {
+      const elapsed = Date.now() - startTs;
+      const h = Math.floor(elapsed/3600000);
+      const m = Math.floor((elapsed%3600000)/60000);
+      const s = Math.floor((elapsed%60000)/1000);
+      document.getElementById('elapsedTime').textContent =
+        `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+      document.getElementById('startTime').textContent =
+        new Date().toLocaleTimeString('zh-CN');
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function refreshStats() {
+    document.getElementById('micCount').textContent = micC;
+    document.getElementById('loopCount').textContent = loopC;
+    document.getElementById('charCount').textContent = chars;
+    document.getElementById('totalCount').textContent = entries.length;
+  }
+
+  function addLog(txt) {
+    logPanel.classList.add('visible');
+    const el = document.createElement('div');
+    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
+    if (txt.startsWith('[ERROR]')) el.className = 'log-error';
+    logContent.appendChild(el);
+    logContent.scrollTop = logContent.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ===== 初始化 =====
+  loadDevices();
+</script>
+</body>
+</html>
