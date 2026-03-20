@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Moonshine 会议助手</title>
   <style>
-    /* ===== 全局重置 ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --bg: #0d1117;
       --surface: #161b22;
+      --surface2: #1c2128;
       --border: #30363d;
       --text: #e6edf3;
       --muted: #7d8590;
@@ -18,69 +18,81 @@
       --green: #3fb950;
       --red: #f85149;
       --yellow: #d29922;
+      --orange: #db6d28;
       --radius: 8px;
     }
 
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      user-select: none;
     }
 
     /* ===== 标题栏 ===== */
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
+      padding: 10px 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-shrink: 0;
       -webkit-app-region: drag;
     }
     header h1 {
-      font-size: 15px;
-      font-weight: 600;
+      font-size: 14px;
+      font-weight: 700;
       color: var(--accent);
       -webkit-app-region: no-drag;
     }
     .badge {
-      font-size: 11px;
+      font-size: 10px;
       padding: 2px 7px;
       border-radius: 20px;
-      background: rgba(88, 166, 255, 0.15);
+      background: rgba(88,166,255,0.15);
       color: var(--accent);
+      border: 1px solid rgba(88,166,255,0.3);
       -webkit-app-region: no-drag;
     }
     .spacer { flex: 1; -webkit-app-region: drag; }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
     .status-dot {
       width: 8px; height: 8px; border-radius: 50%;
       background: var(--muted);
-      transition: background 0.3s;
-      -webkit-app-region: no-drag;
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
     }
-    .status-dot.running { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.running {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
     .status-dot.error { background: var(--red); }
-    #statusText { font-size: 12px; color: var(--muted); -webkit-app-region: no-drag; }
+    .status-dot.loading { background: var(--yellow); animation: blink 0.8s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    #statusText { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
     /* ===== 主布局 ===== */
-    main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+    main { display: flex; flex: 1; overflow: hidden; }
 
     /* ===== 左侧面板 ===== */
     aside {
-      width: 280px;
+      width: 300px;
       border-right: 1px solid var(--border);
+      background: var(--surface);
       display: flex;
       flex-direction: column;
-      background: var(--surface);
       flex-shrink: 0;
     }
 
@@ -88,41 +100,102 @@
       padding: 14px 16px;
       border-bottom: 1px solid var(--border);
     }
+
     .panel-title {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       color: var(--muted);
       margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
 
-    /* 设备选择 */
+    /* ===== 设备选择 ===== */
+    .device-wrap { position: relative; margin-bottom: 8px; }
+
     select {
       width: 100%;
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
       border-radius: var(--radius);
-      padding: 7px 10px;
-      font-size: 13px;
-      margin-bottom: 8px;
+      padding: 8px 32px 8px 10px;
+      font-size: 12px;
       outline: none;
       transition: border-color 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
     }
     select:focus { border-color: var(--accent); }
-    select:disabled { opacity: 0.5; cursor: not-allowed; }
+    select:disabled { opacity: 0.45; cursor: not-allowed; }
+    select option { background: var(--surface2); padding: 4px; }
 
-    /* 开关行 */
+    /* 下拉箭头 */
+    .device-wrap::after {
+      content: '▾';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+      font-size: 12px;
+    }
+
+    /* 设备标签 */
+    .device-hint {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .device-hint.warn { color: var(--orange); }
+
+    /* 刷新按钮 */
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      margin-top: 6px;
+      width: 100%;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ===== 设备状态条 ===== */
+    #deviceStatus {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 16px;
+    }
+    #deviceStatus.ok { color: var(--green); }
+    #deviceStatus.warn { color: var(--orange); }
+    #deviceStatus.err { color: var(--red); }
+    #deviceStatus.loading { color: var(--yellow); }
+
+    /* ===== 选项 ===== */
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 9px;
     }
-    .toggle-label { font-size: 13px; color: var(--text); }
+    .toggle-label { font-size: 12px; color: var(--text); line-height: 1.3; }
     .toggle {
-      position: relative; width: 36px; height: 20px;
+      position: relative; width: 34px; height: 18px; flex-shrink: 0;
     }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle-slider {
@@ -132,50 +205,63 @@
     }
     .toggle-slider::before {
       content: ''; position: absolute;
-      width: 14px; height: 14px; border-radius: 50%;
+      width: 12px; height: 12px; border-radius: 50%;
       background: white; left: 3px; top: 3px;
       transition: transform 0.2s;
     }
     .toggle input:checked + .toggle-slider { background: var(--accent); }
     .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
 
-    /* 控制按钮 */
+    /* ===== 统计 ===== */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .stat-val { font-size: 18px; font-weight: 700; color: var(--text); }
+    .stat-val.green { color: var(--green); }
+    .stat-val.blue { color: var(--accent); }
+    .stat-val.orange { color: var(--orange); }
+
+    /* ===== 按钮 ===== */
     .btn-row {
+      padding: 12px 16px;
       display: flex;
-      gap: 8px;
-      padding: 14px 16px;
+      flex-direction: column;
+      gap: 6px;
       margin-top: auto;
     }
     .btn {
-      flex: 1;
-      padding: 8px 0;
+      width: 100%;
+      padding: 10px 0;
       border: none;
       border-radius: var(--radius);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       transition: opacity 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:active:not(:disabled) { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-start { background: var(--green); color: white; }
+    .btn-start:hover:not(:disabled) { opacity: 0.88; }
+    .btn-stop { background: var(--red); color: white; }
+    .btn-stop:hover:not(:disabled) { opacity: 0.88; }
+    .btn-save { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-save:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 
-    .btn-start {
-      background: var(--green);
-      color: white;
-    }
-    .btn-start:hover:not(:disabled) { opacity: 0.85; }
-    .btn-stop {
-      background: var(--red);
-      color: white;
-    }
-    .btn-stop:hover:not(:disabled) { opacity: 0.85; }
-    .btn-save {
-      background: var(--accent);
-      color: white;
-    }
-    .btn-save:hover:not(:disabled) { opacity: 0.85; }
-
-    /* ===== 右侧：字幕区 ===== */
+    /* ===== 右侧字幕区 ===== */
     #transcriptPanel {
       flex: 1;
       display: flex;
@@ -184,159 +270,163 @@
     }
 
     .transcript-header {
-      padding: 12px 20px;
+      padding: 10px 20px;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       gap: 8px;
       flex-shrink: 0;
+      background: var(--surface);
     }
-    .transcript-header span {
-      font-size: 12px;
-      color: var(--muted);
-    }
+    .transcript-header span { font-size: 12px; color: var(--muted); }
     .transcript-count {
-      background: var(--accent);
-      color: white;
+      background: rgba(88,166,255,0.15);
+      color: var(--accent);
       font-size: 11px;
       padding: 1px 6px;
       border-radius: 10px;
     }
+    #elapsedTime { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
     #transcriptLog {
       flex: 1;
       overflow-y: auto;
-      padding: 16px 20px;
+      padding: 14px 20px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
+    #transcriptLog::-webkit-scrollbar { width: 4px; }
+    #transcriptLog::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+    /* 转写条目 */
     .entry {
       display: flex;
       gap: 10px;
-      animation: fadeIn 0.2s ease;
+      animation: slideIn 0.18s ease;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(5px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-
     .entry-icon {
       width: 26px; height: 26px;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; flex-shrink: 0;
-      margin-top: 1px;
+      font-size: 12px; flex-shrink: 0; margin-top: 1px;
     }
-    .entry-icon.mic {
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--green);
-    }
-    .entry-icon.loopback {
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent);
-    }
-    .entry-icon.system {
-      background: rgba(210, 153, 34, 0.15);
-      color: var(--yellow);
-    }
-
+    .entry-icon.mic    { background: rgba(63,185,80,0.15);  color: var(--green); }
+    .entry-icon.loopback{ background: rgba(88,166,255,0.15);  color: var(--accent); }
+    .entry-icon.system { background: rgba(210,153,34,0.15);  color: var(--yellow); }
     .entry-body { flex: 1; }
-    .entry-source {
-      font-size: 11px;
-      color: var(--muted);
-      margin-bottom: 2px;
-    }
-    .entry-text {
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--text);
-    }
-    .entry-time {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
+    .entry-src  { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .entry-text { font-size: 14px; line-height: 1.65; color: var(--text); word-break: break-word; }
+    .entry-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
 
+    /* 空状态 */
     .empty-state {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       color: var(--muted);
+      text-align: center;
     }
-    .empty-icon { font-size: 48px; opacity: 0.3; }
-    .empty-state p { font-size: 14px; }
+    .empty-icon { font-size: 44px; opacity: 0.25; }
+    .empty-state p { font-size: 13px; max-width: 240px; line-height: 1.6; }
 
-    /* ===== 滚动条 ===== */
-    #transcriptLog::-webkit-scrollbar { width: 4px; }
-    #transcriptLog::-webkit-scrollbar-track { background: transparent; }
-    #transcriptLog::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    /* ===== 日志面板（底部可折叠）====== */
+    /* ===== 日志面板 ===== */
     #logPanel {
       border-top: 1px solid var(--border);
-      background: #0a0d10;
-      max-height: 120px;
+      background: #080b10;
+      max-height: 100px;
       overflow-y: auto;
       flex-shrink: 0;
       display: none;
     }
     #logPanel.visible { display: block; }
     #logContent {
-      padding: 8px 16px;
-      font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+      padding: 7px 14px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
       font-size: 11px;
       color: #7ee787;
-      line-height: 1.8;
+      line-height: 1.75;
     }
-    .log-error { color: var(--red); }
+    .log-err { color: var(--red); }
+    .log-warn { color: var(--yellow); }
+    .log-info { color: var(--muted); }
+
+    /* ===== 环境检测提示 ===== */
+    #envAlert {
+      background: rgba(219,109,40,0.1);
+      border: 1px solid rgba(219,109,40,0.3);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--orange);
+      margin-top: 6px;
+      display: none;
+      line-height: 1.5;
+    }
+    #envAlert.visible { display: block; }
   </style>
 </head>
 <body>
 
 <!-- 标题栏 -->
 <header>
-  <h1>🌙 Moonshine 会议助手</h1>
-  <span class="badge">v1.0.0</span>
-  <div class="spacer"></div>
-  <div class="status-dot" id="statusDot"></div>
-  <span id="statusText">待机</span>
+  <h1>🌙 Moonshine</h1>
+  <span class="badge">v1.0</span>
+  <div style="flex:1"></div>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">待机</span>
+  </div>
 </header>
 
 <!-- 主界面 -->
 <main>
 
-  <!-- 左侧：设备控制 -->
+  <!-- 左侧 -->
   <aside>
+
+    <!-- 麦克风 -->
     <div class="panel-section">
-      <div class="panel-title">🎤 麦克风设备</div>
-      <select id="micSelect" disabled>
-        <option>加载中...</option>
-      </select>
+      <div class="panel-title">🎤 麦克风</div>
+      <div class="device-hint" id="micHint">系统麦克风输入</div>
+      <div class="device-wrap">
+        <select id="micSelect" disabled><option>加载中…</option></select>
+      </div>
+      <div id="deviceStatusMic"></div>
     </div>
 
+    <!-- 内录 -->
     <div class="panel-section">
-      <div class="panel-title">🔊 系统内录设备</div>
-      <select id="loopbackSelect" disabled>
-        <option>加载中...</option>
-      </select>
+      <div class="panel-title">🔊 系统内录</div>
+      <div class="device-hint warn" id="loopHint">
+        Windows：WASAPI Loopback · macOS：BlackHole
+      </div>
+      <div class="device-wrap">
+        <select id="loopSelect" disabled><option>加载中…</option></select>
+      </div>
+      <div id="deviceStatusLoop"></div>
+      <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备</button>
     </div>
 
+    <!-- 选项 -->
     <div class="panel-section">
       <div class="panel-title">⚙️ 选项</div>
       <div class="toggle-row">
-        <span class="toggle-label">启用 VAD（人声检测）</span>
+        <span class="toggle-label">启用 VAD<br><span style="font-size:10px;color:var(--muted)">静音自动跳过</span></span>
         <label class="toggle">
           <input type="checkbox" id="vadToggle" checked />
           <span class="toggle-slider"></span>
         </label>
       </div>
       <div class="toggle-row">
-        <span class="toggle-label">双路混合转写</span>
+        <span class="toggle-label">双路同时采集<br><span style="font-size:10px;color:var(--muted)">麦克风 + 内录并行</span></span>
         <label class="toggle">
           <input type="checkbox" id="dualToggle" checked />
           <span class="toggle-slider"></span>
@@ -344,39 +434,53 @@
       </div>
     </div>
 
-    <!-- 实时统计 -->
+    <!-- 统计 -->
     <div class="panel-section">
       <div class="panel-title">📊 本次会议</div>
-      <div style="font-size:12px; color:var(--muted); line-height:1.9;">
-        <div>麦克风转写：<span id="micCount" style="color:var(--green)">0</span> 条</div>
-        <div>系统内录：<span id="loopCount" style="color:var(--accent)">0</span> 条</div>
-        <div>总字数：<span id="charCount">0</span></div>
-        <div>开始时间：<span id="startTime">--:--:--</span></div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">麦克风</div>
+          <div class="stat-val green" id="micCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">内录</div>
+          <div class="stat-val blue" id="loopCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">总字数</div>
+          <div class="stat-val orange" id="charCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">时长</div>
+          <div class="stat-val" id="elapsedVal">00:00</div>
+        </div>
       </div>
     </div>
 
     <!-- 按钮 -->
     <div class="btn-row">
-      <button class="btn btn-start" id="btnStart">▶ 开始</button>
+      <button class="btn btn-start" id="btnStart">▶ 开始转写</button>
       <button class="btn btn-stop" id="btnStop" disabled>■ 停止</button>
+      <button class="btn btn-save" id="btnSave">💾 导出 Markdown</button>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-save" id="btnSave">💾 保存笔记</button>
-    </div>
+
+    <!-- 环境警告 -->
+    <div id="envAlert"></div>
+
   </aside>
 
-  <!-- 右侧：字幕 -->
+  <!-- 右侧字幕 -->
   <div id="transcriptPanel">
     <div class="transcript-header">
       <span>实时字幕</span>
       <span class="transcript-count" id="totalCount">0</span>
       <div style="flex:1"></div>
-      <span id="elapsedTime" style="color:var(--muted);font-size:12px;">00:00:00</span>
+      <span id="elapsedTime">00:00:00</span>
     </div>
     <div id="transcriptLog">
       <div class="empty-state" id="emptyState">
         <div class="empty-icon">🎙️</div>
-        <p>选择设备后点击「开始」启动转写</p>
+        <p>选择麦克风后点击「开始转写」<br/>首次使用请允许浏览器调用麦克风</p>
       </div>
     </div>
   </div>
@@ -384,230 +488,291 @@
 </main>
 
 <!-- 日志面板 -->
-<div id="logPanel">
-  <div id="logContent"></div>
-</div>
+<div id="logPanel"><div id="logContent"></div></div>
 
 <script>
-  // ===== 全局状态 =====
-  let isRunning = false;
+  // ===== 状态 =====
+  let isRunning   = false;
+  let micOk = false, loopOk = false;
   let entries = [];
   let micC = 0, loopC = 0, chars = 0;
-  let timerInterval = null;
   let startTs = null;
+  let timerInterval = null;
+  let allDevices = [];
 
   // ===== DOM =====
-  const micSel     = document.getElementById('micSelect');
-  const loopSel    = document.getElementById('loopbackSelect');
-  const vadToggle  = document.getElementById('vadToggle');
-  const dualToggle = document.getElementById('dualToggle');
-  const btnStart   = document.getElementById('btnStart');
-  const btnStop    = document.getElementById('btnStop');
-  const btnSave    = document.getElementById('btnSave');
-  const logPanel   = document.getElementById('logPanel');
-  const logContent = document.getElementById('logContent');
-  const tlog       = document.getElementById('transcriptLog');
-  const emptyState = document.getElementById('emptyState');
+  const micSel    = document.getElementById('micSelect');
+  const loopSel   = document.getElementById('loopSelect');
+  const micHint   = document.getElementById('micHint');
+  const loopHint  = document.getElementById('loopHint');
+  const vadToggle = document.getElementById('vadToggle');
+  const dualToggle= document.getElementById('dualToggle');
+  const btnStart  = document.getElementById('btnStart');
+  const btnStop   = document.getElementById('btnStop');
+  const btnSave   = document.getElementById('btnSave');
+  const btnRefresh= document.getElementById('btnRefresh');
+  const tlog      = document.getElementById('transcriptLog');
+  const emptyState= document.getElementById('emptyState');
+  const envAlert  = document.getElementById('envAlert');
+  const statusDot = document.getElementById('statusDot');
+  const statusText= document.getElementById('statusText');
+  const logPanel  = document.getElementById('logPanel');
+  const logContent= document.getElementById('logContent');
 
-  // ===== 加载设备列表 =====
+  // ===== 设备加载 =====
   async function loadDevices() {
-    const devs = await window.electronAPI.getAudioDevices();
-    micSel.innerHTML = '';
-    loopSel.innerHTML = '';
+    setStatus('loading', '加载设备…');
+    btnRefresh.disabled = true;
+    micSel.innerHTML = '<option>加载中…</option>';
+    micSel.disabled = true;
+    loopSel.innerHTML = '<option>加载中…</option>';
+    loopSel.disabled = true;
 
-    if (devs.error) {
-      micSel.innerHTML = '<option>' + devs.error + '</option>';
-      loopSel.innerHTML = '<option>' + devs.error + '</option>';
+    const devs = await window.electronAPI.getAudioDevices();
+
+    btnRefresh.disabled = false;
+
+    if (devs.error || !Array.isArray(devs)) {
+      setDeviceError('mic', devs.error || '获取设备失败');
+      setDeviceError('loop', '无法枚举设备');
+      envAlert.textContent = '⚠️ ' + (devs.error || '请确认已安装 Python 依赖：pip install sounddevice numpy');
+      envAlert.classList.add('visible');
+      setStatus('error', '设备加载失败');
+      addLog('[ERROR] ' + (devs.error || '设备枚举失败'), 'err');
       return;
     }
 
-    // 分组
-    const inputs = devs.filter(d => d.maxInputChannels > 0);
-    let micFound = false, loopFound = false;
+    allDevices = devs.filter(d => d.maxInputChannels > 0);
 
-    for (const d of inputs) {
-      const label = `${d.index}: ${d.name}`;
-      const opt1 = new Option(label, d.index);
-      const opt2 = new Option(label, d.index);
-      micSel.add(opt1);
-      // 尝试自动识别内录设备（名称含 loopback / stereo mix / 内录 / 立体声混音）
-      const lower = d.name.toLowerCase();
-      if (!loopFound && (
-        lower.includes('loopback') ||
-        lower.includes('stereo mix') ||
-        lower.includes('内录') ||
-        lower.includes('立体声混音') ||
-        lower.includes('what u hear') ||
-        lower.includes('wasapi')
-      )) {
-        loopSel.add(new Option(label + ' ⭐', d.index), 0);
-        loopFound = true;
-      } else {
-        loopSel.add(opt2);
-      }
+    if (allDevices.length === 0) {
+      setDeviceError('mic', '未检测到输入设备');
+      setDeviceError('loop', '未检测到输入设备');
+      envAlert.textContent = '⚠️ 未检测到任何音频输入设备，请检查系统权限或麦克风连接';
+      envAlert.classList.add('visible');
+      setStatus('error', '无设备');
+      return;
     }
 
-    micSel.disabled = false;
-    loopSel.disabled = false;
-    if (micSel.options.length > 0) micSel.selectedIndex = 0;
-    if (loopSel.options.length > 0) loopSel.selectedIndex = 0;
+    envAlert.classList.remove('visible');
+    micSel.innerHTML = '';
+    loopSel.innerHTML = '';
 
-    addLog('设备加载完毕，共 ' + inputs.length + ' 个输入设备');
+    let loopFound = false;
+
+    allDevices.forEach((d, i) => {
+      const label = `${d.index}: ${d.name}`;
+      const isLoop = isLoopback(d.name);
+
+      const optMic = new Option(label, d.index);
+      const optLoop = new Option(label, d.index);
+
+      micSel.add(optMic);
+
+      if (isLoop && !loopFound) {
+        loopSel.add(optLoop, 0);
+        optLoop.text = label + ' ⭐';
+        loopFound = true;
+        setDeviceStatus('loop', 'ok', `检测到内录设备 ${d.name}`);
+        loopOk = true;
+      } else {
+        loopSel.add(optLoop);
+      }
+    });
+
+    if (micSel.options.length > 0) {
+      micSel.selectedIndex = 0;
+      micSel.disabled = false;
+      micOk = true;
+      setDeviceStatus('mic', 'ok', `已就绪: ${allDevices[0].name}`);
+    }
+    if (!loopFound) {
+      loopSel.selectedIndex = 0;
+      loopSel.disabled = false;
+      loopOk = true;
+      setDeviceStatus('loop', 'warn', '未检测到 Loopback 设备，内录将不可用');
+    }
+
+    const ready = micOk && loopOk;
+    btnStart.disabled = !ready || isRunning;
+    setStatus(ready ? 'idle' : 'warn', ready ? '就绪' : '请选择设备');
   }
 
-  // ===== 事件绑定 =====
+  function isLoopback(name) {
+    const n = name.toLowerCase();
+    return n.includes('loopback') ||
+           n.includes('stereo mix') ||
+           n.includes('立体声混音') ||
+           n.includes('内录') ||
+           n.includes('wasapi') ||
+           n.includes('what u hear') ||
+           n.includes('virtual');
+  }
+
+  // ===== 状态显示工具 =====
+  function setStatus(type, text) {
+    statusDot.className = 'status-dot ' + (type === 'running' ? 'running' : type === 'error' ? 'error' : type === 'loading' ? 'loading' : '');
+    statusText.textContent = text;
+  }
+
+  function setDeviceStatus(type, state, text) {
+    const el = document.getElementById(type === 'mic' ? 'deviceStatusMic' : 'deviceStatusLoop');
+    if (!el) return;
+    el.className = 'device-status-bar ' + state;
+    el.textContent = text;
+  }
+
+  function setDeviceError(type, text) {
+    const el = document.getElementById(type === 'mic' ? 'deviceStatusMic' : 'deviceStatusLoop');
+    if (!el) return;
+    el.className = 'device-status-bar err';
+    el.textContent = text;
+    if (type === 'mic') { micSel.innerHTML = `<option>${text}</option>`; micSel.disabled = true; micOk = false; }
+    else { loopSel.innerHTML = `<option>${text}</option>`; loopSel.disabled = true; loopOk = false; }
+    btnStart.disabled = !micOk || isRunning;
+  }
+
+  function addLog(txt, type) {
+    logPanel.classList.add('visible');
+    const el = document.createElement('div');
+    el.className = type ? `log-${type}` : '';
+    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
+    logContent.appendChild(el);
+    logContent.scrollTop = logContent.scrollHeight;
+  }
+
+  // ===== 转写控制 =====
   btnStart.addEventListener('click', async () => {
     if (isRunning) return;
     const config = {
-      micDeviceIndex: parseInt(micSel.value) || -1,
-      loopbackDeviceIndex: parseInt(loopSel.value) || -1,
-      vadEnabled: vadToggle.checked,
-      dualEnabled: dualToggle.checked,
+      micDeviceIndex:    parseInt(micSel.value) || -1,
+      loopbackDeviceIndex: dualToggle.checked ? (parseInt(loopSel.value) || -1) : -1,
+      vadEnabled:        vadToggle.checked,
+      dualEnabled:        dualToggle.checked,
     };
-    addLog('启动转写，配置=' + JSON.stringify(config));
-    const res = await window.electronAPI.startTranscription(config);
-    if (res.ok) {
-      setRunning(true);
-      startTimer();
-    }
+    addLog('启动: ' + JSON.stringify(config), 'info');
+    await window.electronAPI.startTranscription(config);
+    startRunning();
   });
 
   btnStop.addEventListener('click', async () => {
     await window.electronAPI.stopTranscription();
-    setRunning(false);
-    stopTimer();
+    stopRunning();
+    addLog('已停止', 'info');
   });
+
+  btnRefresh.addEventListener('click', () => { if (!isRunning) loadDevices(); });
 
   btnSave.addEventListener('click', async () => {
     if (entries.length === 0) {
-      alert('还没有转写内容，先开始转写再保存');
+      alert('还没有转写内容');
       return;
     }
     const md = buildMarkdown();
-    const ts = new Date();
-    const filename = `会议记录_${ts.getFullYear()}${(ts.getMonth()+1).toString().padStart(2,'0')}${ts.getDate().toString().padStart(2,'0')}_${ts.getHours().toString().padStart(2,'0')}${ts.getMinutes().toString().padStart(2,'0')}.md`;
-    const res = await window.electronAPI.saveSubtitle({ filename, content: md });
-    if (res.ok) {
-      addLog('文件已保存: ' + res.path);
-      alert('已保存到：\n' + res.path);
-    }
+    const d = new Date();
+    const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}${d.getMinutes().toString().padStart(2,'0')}`;
+    const res = await window.electronAPI.saveSubtitle({
+      filename: `会议记录_${ts}.md`,
+      content: md
+    });
+    if (res.ok) { addLog('已保存: ' + res.path, 'info'); alert('已保存到：\n' + res.path); }
   });
 
   // ===== Electron 事件 =====
   window.electronAPI.onTranscript((msg) => {
     if (!msg || !msg.text) return;
-    appendEntry(msg);
-  });
-
-  window.electronAPI.onLog((txt) => {
-    addLog(txt);
-  });
-
-  window.electronAPI.onStatus((s) => {
-    if (s === 'stopped') {
-      setRunning(false);
-      stopTimer();
-    }
-  });
-
-  // ===== 转写条目 =====
-  function appendEntry(msg) {
-    entries.push(msg);
     if (emptyState) emptyState.style.display = 'none';
-
-    const source = msg.source || 'mic';
-    const icon = source === 'mic' ? '🎤' : (source === 'loopback' ? '🔊' : '💬');
-    const label = source === 'mic' ? '麦克风' : (source === 'loopback' ? '系统内录' : '混合');
-    const color = source === 'mic' ? 'mic' : (source === 'loopback' ? 'loopback' : 'system');
-
+    const src = msg.source || 'mic';
+    const icon = src === 'mic' ? '🎤' : src === 'loopback' ? '🔊' : '💬';
+    const label = src === 'mic' ? '麦克风' : src === 'loopback' ? '系统内录' : '混合';
+    const color = src === 'mic' ? 'mic' : src === 'loopback' ? 'loopback' : 'system';
     const t = new Date();
     const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
-
+    entries.push({ source: src, text: msg.text, ts: msg.ts || Date.now() });
     const el = document.createElement('div');
     el.className = 'entry';
     el.innerHTML = `
       <div class="entry-icon ${color}">${icon}</div>
       <div class="entry-body">
-        <div class="entry-source">${label}</div>
-        <div class="entry-text">${escapeHtml(msg.text)}</div>
+        <div class="entry-src">${label}</div>
+        <div class="entry-text">${escHtml(msg.text)}</div>
         <div class="entry-time">${time}</div>
       </div>`;
     tlog.appendChild(el);
     tlog.scrollTop = tlog.scrollHeight;
-
-    // 统计
-    if (source === 'mic') micC++;
-    else if (source === 'loopback') loopC++;
-    else { micC++; loopC++; }
+    if (src === 'mic') micC++; else if (src === 'loopback') loopC++; else { micC++; loopC++; }
     chars += msg.text.length;
     refreshStats();
+  });
+
+  window.electronAPI.onLog((txt) => addLog(txt, txt.startsWith('[ERROR]') ? 'err' : txt.startsWith('[WARN]') ? 'warn' : ''));
+
+  window.electronAPI.onStatus((s) => {
+    if (s === 'stopped') { stopRunning(); addLog('Python 进程已退出', 'warn'); }
+  });
+
+  // ===== 状态切换 =====
+  function startRunning() {
+    isRunning = true;
+    btnStart.disabled = true;
+    btnStop.disabled  = false;
+    micSel.disabled   = true;
+    loopSel.disabled   = true;
+    btnRefresh.disabled= true;
+    vadToggle.parentElement.style.opacity = '0.4';
+    vadToggle.disabled = true;
+    dualToggle.parentElement.style.opacity = '0.4';
+    dualToggle.disabled= true;
+    setStatus('running', '转写中…');
+    startTs = Date.now();
+    timerInterval = setInterval(() => {
+      const e = Date.now() - startTs;
+      const h = Math.floor(e/3600000), m = Math.floor((e%3600000)/60000), s = Math.floor((e%60000)/1000);
+      const ts = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+      document.getElementById('elapsedTime').textContent = ts;
+      document.getElementById('elapsedVal').textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    }, 1000);
+  }
+
+  function stopRunning() {
+    isRunning = false;
+    clearInterval(timerInterval);
+    timerInterval = null;
+    btnStart.disabled = !micOk;
+    btnStop.disabled  = true;
+    micSel.disabled    = false;
+    if (loopOk) loopSel.disabled = false;
+    btnRefresh.disabled= false;
+    vadToggle.disabled = false;
+    vadToggle.parentElement.style.opacity = '1';
+    dualToggle.disabled= false;
+    dualToggle.parentElement.style.opacity = '1';
+    setStatus(micOk ? 'idle' : 'error', micOk ? '就绪' : '设备异常');
+  }
+
+  function refreshStats() {
+    document.getElementById('micCount').textContent  = micC;
+    document.getElementById('loopCount').textContent  = loopC;
+    document.getElementById('charCount').textContent  = chars;
+    document.getElementById('totalCount').textContent= entries.length;
   }
 
   function buildMarkdown() {
     let md = `# Moonshine 会议记录\n\n`;
-    md += `> 自动生成 | ${new Date().toLocaleString('zh-CN')}\n\n`;
-    md += `---\n\n`;
+    md += `> ${new Date().toLocaleString('zh-CN')} · ${entries.length} 条 · ${chars} 字\n\n---\n\n`;
     for (const e of entries) {
-      const t = new Date(e.ts || Date.now());
-      const ts = t.toLocaleTimeString('zh-CN');
-      const src = e.source === 'mic' ? '🎤 麦克风' : (e.source === 'loopback' ? '🔊 系统内录' : '💬 混合');
-      md += `**${src}** [${ts}]\n\n${e.text}\n\n---\n\n`;
+      const t = new Date(e.ts);
+      const src = e.source === 'mic' ? '🎤 麦克风' : e.source === 'loopback' ? '🔊 系统内录' : '💬 混合';
+      md += `**${src}** [${t.toLocaleTimeString('zh-CN')}]\n\n${e.text}\n\n---\n\n`;
     }
-    md += `*由 Moonshine 会议助手 自动转写*\n`;
+    md += `*由 Moonshine 会议助手 自动转写 · moonshine-small*\n`;
     return md;
   }
 
-  // ===== 状态管理 =====
-  function setRunning(r) {
-    isRunning = r;
-    btnStart.disabled = r;
-    btnStop.disabled  = !r;
-    micSel.disabled   = r;
-    loopSel.disabled  = r;
-    document.getElementById('statusDot').className = 'status-dot' + (r ? ' running' : '');
-    document.getElementById('statusText').textContent = r ? '转写中…' : '待机';
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function startTimer() {
-    startTs = Date.now();
-    timerInterval = setInterval(() => {
-      const elapsed = Date.now() - startTs;
-      const h = Math.floor(elapsed/3600000);
-      const m = Math.floor((elapsed%3600000)/60000);
-      const s = Math.floor((elapsed%60000)/1000);
-      document.getElementById('elapsedTime').textContent =
-        `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-      document.getElementById('startTime').textContent =
-        new Date().toLocaleTimeString('zh-CN');
-    }, 1000);
-  }
-
-  function stopTimer() {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
-
-  function refreshStats() {
-    document.getElementById('micCount').textContent = micC;
-    document.getElementById('loopCount').textContent = loopC;
-    document.getElementById('charCount').textContent = chars;
-    document.getElementById('totalCount').textContent = entries.length;
-  }
-
-  function addLog(txt) {
-    logPanel.classList.add('visible');
-    const el = document.createElement('div');
-    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
-    if (txt.startsWith('[ERROR]')) el.className = 'log-error';
-    logContent.appendChild(el);
-    logContent.scrollTop = logContent.scrollHeight;
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  // ===== 初始化 =====
+  // ===== 启动 =====
   loadDevices();
 </script>
 </body>
