@@ -1,3 +1,14 @@
+---
+AIGC:
+    ContentProducer: Minimax Agent AI
+    ContentPropagator: Minimax Agent AI
+    Label: AIGC
+    ProduceID: b31c80d79fb110ffb56dc849140cbc95
+    PropagateID: b31c80d79fb110ffb56dc849140cbc95
+    ReservedCode1: 304502202c1e696f050d423e6353b63a2bc083f6583be0223bf9be55da357b15188f09ee02210099e5cac9c0f98630acc5a0ae71b8b411280124be01ff35b65e6dc7912c91a6d6
+    ReservedCode2: 304502207e90a9e7011d003ec0ad1862bf3c1c6de1fb51484982daf276c4f2b3b97fe5f2022100d5b697554dc0896c01dfb3160826e75f9ea777931b62ebb12de6013814dc3078
+---
+
 # Moonshine AI 跨平台会议助手方案
 
 > 支持：麦克风 + 系统内录 双路语音转写

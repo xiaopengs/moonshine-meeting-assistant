@@ -461,7 +461,7 @@
     <div class="btn-row">
       <button class="btn btn-start" id="btnStart">▶ 开始转写</button>
       <button class="btn btn-stop" id="btnStop" disabled>■ 停止</button>
-      <button class="btn btn-save" id="btnSave">💾 导出 Markdown</button>
+      <div style="padding:0 16px;margin-bottom:6px"><select id="exportFormat" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none"><option value="md">📄 Markdown (.md)</option><option value="srt">🎬 SRT 字幕 (.srt)</option><option value="txt">📝 纯文本 (.txt)</option></select></div><button class="btn btn-save" id="btnSave">💾 导出</button>
     </div>
 
     <!-- 环境警告 -->
@@ -663,18 +663,16 @@
   btnRefresh.addEventListener('click', () => { if (!isRunning) loadDevices(); });
 
   btnSave.addEventListener('click', async () => {
-    if (entries.length === 0) {
-      alert('还没有转写内容');
-      return;
-    }
-    const md = buildMarkdown();
+    if (entries.length === 0) { alert('还没有转写内容'); return; }
+    const fmt = document.getElementById('exportFormat').value;
     const d = new Date();
-    const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}${d.getMinutes().toString().padStart(2,'0')}`;
-    const res = await window.electronAPI.saveSubtitle({
-      filename: `会议记录_${ts}.md`,
-      content: md
-    });
-    if (res.ok) { addLog('已保存: ' + res.path, 'info'); alert('已保存到：\n' + res.path); }
+    const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`;
+    let content, ext, mime;
+    if (fmt === 'srt') { content = buildSRT(); ext = 'srt'; mime = 'SRT 字幕'; }
+    else if (fmt === 'txt') { content = buildTxt(); ext = 'txt'; mime = '纯文本'; }
+    else { content = buildMarkdown(); ext = 'md'; mime = 'Markdown'; }
+    const res = await window.electronAPI.saveSubtitle({ filename: `会议记录_${ts}.`+ext, content });
+    if (res.ok) { addLog('已导出 '+mime+' → '+res.path, 'info'); alert(mime+' 已保存：\n'+res.path); }
   });
 
   // ===== Electron 事件 =====
@@ -766,6 +764,35 @@
     }
     md += `*由 Moonshine 会议助手 自动转写 · moonshine-small*\n`;
     return md;
+  }
+
+  // ── SRT 字幕格式（每条显示 3 秒）──────────────────
+  function buildSRT() {
+    const DISP_MS = 3000;
+    let lines = [];
+    entries.forEach((e, i) => {
+      const s = new Date(e.ts);
+      const en = new Date(e.ts + DISP_MS);
+      lines.push(`${i+1}\n${fmtSRT(s)} --> ${fmtSRT(en)}\n${e.text}`);
+    });
+    return lines.join('\n\n') + '\n';
+  }
+
+  function fmtSRT(d) {
+    const h = String(d.getHours()).padStart(2,'0');
+    const m = String(d.getMinutes()).padStart(2,'0');
+    const s = String(d.getSeconds()).padStart(2,'0');
+    const ms = String(d.getMilliseconds()).padStart(3,'0');
+    return `${h}:${m}:${s},${ms}`;
+  }
+
+  // ── 纯文本格式 ────────────────────────────────────
+  function buildTxt() {
+    return entries.map(e => {
+      const t = new Date(e.ts).toLocaleTimeString('zh-CN');
+      const src = e.source === 'mic' ? '[🎤] ' : e.source === 'loopback' ? '[🔊] ' : '[💬] ';
+      return `${t} ${src}${e.text}`;
+    }).join('\n');
   }
 
   function escHtml(s) {
