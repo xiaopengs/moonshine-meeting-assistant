@@ -3,10 +3,10 @@ AIGC:
     ContentProducer: Minimax Agent AI
     ContentPropagator: Minimax Agent AI
     Label: AIGC
-    ProduceID: 0c6ea5f1cf2bea16a45b8dedf872036a
-    PropagateID: 0c6ea5f1cf2bea16a45b8dedf872036a
-    ReservedCode1: 30450221009a0d8144ecf4ebf8d462f14faf9000a7c1cc081a536303127b87b6d4d08d7d7002205eb8d30b198d0846f3acdeb27099ba771a72ee91e96131b6e09acfd5be1e6bf1
-    ReservedCode2: 3045022100b39a3ef0a10808a5a057d49aaa98e8882ade990f7b363c8cdb7e2d5c9f8162b802203ea254b01e3dd6ee56f97f5dd437e885767f8f1f527bcfc746d89115591dde53
+    ProduceID: db58934407e20aca93eaf7ed581ff513
+    PropagateID: db58934407e20aca93eaf7ed581ff513
+    ReservedCode1: 3046022100ec0166fe8b66520d1898ec96118ebeacb08f38356f6ee79baa0dc8ed879d1f65022100e6d6ee70cccdb75a361b9064aa8b831a871be09ee28720d2f8b90c938888231f
+    ReservedCode2: 304402203921bbe1c7c00a57b53384cd6e71808523907e40d92bd5df52e7d29135bcf89c02207aa59b2d1961ca9d2c57444589a99615f468b015acf6ce452187d1fc193970c7
 ---
 
 # Moonshine Meeting Assistant — 进度跟进表

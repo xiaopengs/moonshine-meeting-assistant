@@ -1,111 +1,107 @@
 # 🌙 Moonshine 会议助手
 
-> 支持**麦克风 + 系统内录**双路语音转写的跨平台 Electron 桌面应用
+> 支持麦克风 + 系统内录双路语音转写的跨平台 Electron 桌面应用
+> 模型：[moonshine-ai/moonshine](https://github.com/moonshine-ai/moonshine)（small streaming，123M params，WER 7.84%）
 
-## 功能特性
+---
 
-- 🎤 **麦克风采集** — 实时采集人声并转写
-- 🔊 **系统内录** — 无需虚拟声卡，WASAPI Loopback 直接录制系统音频
-- ⚡ **双路同时** — 麦克风 + 内录同时开启，分别标记发言人
-- 🤫 **全程离线** — 所有音频数据不联网，纯本地处理
-- 📝 **实时字幕** — 字幕实时显示，支持 Markdown 导出
-- 🌐 **跨平台** — Windows / macOS / Linux
+## 快速开始
 
-## 系统要求
-
-- **Windows 10+**（内置 WASAPI Loopback，无需虚拟声卡）
-- **macOS 10.15+**（需安装 BlackHole 2ch 虚拟声牙）
-- **Linux**（需安装 PulseAudio 或 ALSA loopback 模块）
-
-## 安装依赖
-
-### Python 依赖
+### 1. 安装 Python 依赖
 
 ```bash
-pip install moonshine sounddevice numpy
+pip install moonshine-voice sounddevice numpy
 ```
 
-或一键安装：
+### 2. 下载模型（自动）
+
+首次运行时会自动下载，亦可手动：
 
 ```bash
-pip install -r requirements.txt
+python -m moonshine_voice.download --language en
 ```
 
-### Node.js 依赖
+### 3. 查询音频设备
+
+```bash
+python python/list_devices.py
+```
+
+### 4. 启动 Electron
 
 ```bash
 npm install
-```
-
-## 运行
-
-```bash
-# 查询可用音频设备
-python python/list_devices.py
-
-# 启动 Electron 应用
 npm start
 ```
 
-## 设备说明
+---
 
-### Windows（推荐）
+## 技术规格
 
-系统内录使用 **WASAPI Loopback**，声卡自带功能，无需安装虚拟声卡。
-在应用中选择名称含 `Loopback` 或 `WASAPI` 的设备即可。
+| 项目 | 值 |
+|------|---|
+| 模型 | moonshine-small streaming |
+| 参数量 | 123M |
+| WER | 7.84%（英文） |
+| Linux 推理延迟 | 165ms |
+| 端到端延迟 | ~260ms（160ms chunk） |
+| Python 包 | `moonshine-voice` |
 
-### macOS
-
-需安装 **BlackHole 2ch**（免费开源）：
-```bash
-brew install blackhole-2ch
-```
-然后将系统音频输出路由到 BlackHole，再在应用中选择 BlackHole 作为内录设备。
-
-### Linux
-
-```bash
-# PulseAudio 内录模块
-pactl load-module module-loopback
-```
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 框架 | Electron 28 + TypeScript |
-| UI | HTML/CSS/JS（原生，无框架依赖） |
-| 后端转写 | Python 3.10+ / moonshine-small (ONNX) |
-| 音频采集 | sounddevice + WASAPI Loopback |
-| 打包 | electron-builder |
+---
 
 ## 项目结构
 
 ```
 moonshine-meeting-assistant/
 ├── main.js               # Electron 主进程
-├── preload.js             # 安全桥接（IPC）
-├── package.json           # 构建配置
+├── preload.js           # IPC 安全桥接
 ├── renderer/
-│   └── index.html         # 完整 UI（字幕 + 设备选择）
+│   └── index.html       # 完整 UI（设备选择 + 实时字幕 + 导出）
 ├── python/
-│   ├── list_devices.py    # 音频设备枚举
-│   └── transcribe.py      # 双路转写核心
-└── assets/                # 图标等资源
+│   ├── list_devices.py  # 音频设备枚举
+│   └── transcribe.py    # 双路转写核心（moonshine-voice 事件驱动）
+├── doc/                 # 需求文档 / 进度
+├── query/               # 决策记录
+└── requirements.txt     # Python 依赖
 ```
+
+---
+
+## 架构
+
+```
+[麦克风 / Loopback] → sounddevice 采集（160ms chunk）
+        ↓
+[能量 VAD 过滤]
+        ↓
+[moonshine-voice Transcriber]
+  · on_line_text_changed → 实时输出
+  · on_line_completed  → 段结束
+        ↓
+[stdout JSON] → Electron IPC → UI 实时字幕
+```
+
+---
+
+## Windows 内录说明
+
+WASAPI Loopback 内录（无需虚拟声卡）：
+
+1. 打开系统声音设置 → 声音控制面板 → 录制选项卡
+2. 确认「立体声混音」或「WASAPI Loopback」已启用
+3. App 中选择对应设备（自动标记 ⭐）
+
+---
 
 ## 构建发布包
 
 ```bash
-# Windows
-npm run build -- --win
-
-# macOS
-npm run build -- --mac
-
-# Linux
-npm run build -- --linux
+npm run build -- --win     # Windows
+npm run build -- --mac     # macOS
+npm run build -- --linux    # Linux
 ```
+
+---
 
 ## License
 

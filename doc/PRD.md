@@ -1,3 +1,14 @@
+---
+AIGC:
+    ContentProducer: Minimax Agent AI
+    ContentPropagator: Minimax Agent AI
+    Label: AIGC
+    ProduceID: d2791ea37277d57658176ca104a357a4
+    PropagateID: d2791ea37277d57658176ca104a357a4
+    ReservedCode1: 30440220691e08b5b90378f7d4bc01bd61c043ad1893ec6b614ac06a6d44f2979dbf9e7e022072b311225e441bbd59c4411f18b8487def9fb5a45d40671b5b5205c5bd53163a
+    ReservedCode2: 3044022079b3ac9e8ee251268c67a68acec7e8162dfad5fcfadd2d78657d302895b9e81402207e7aa811c7f6742f12f66df2d8c6a4f006920af40743bd23d9f727c2887f0595
+---
+
 # Moonshine Meeting Assistant — 项目需求文档（PRD）
 
 > 版本：v0.1.0
