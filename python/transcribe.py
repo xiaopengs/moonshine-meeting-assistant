@@ -14,8 +14,8 @@ except ImportError:
     sys.exit(1)
 
 SAMPLE_RATE   = 16000
-CHUNK_DURATION = 0.3
-CHUNK_SIZE    = int(SAMPLE_RATE * CHUNK_DURATION)
+CHUNK_DURATION = 0.16
+CHUNK_SIZE    = int(SAMPLE_RATE * CHUNK_DURATION)  # 160ms → 2560 samples for <300ms E2E
 VAD_THRESHOLD = 0.01
 SEEN_TEXT     = ""
 dedup_counter = 0
