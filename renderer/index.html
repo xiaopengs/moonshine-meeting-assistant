@@ -334,6 +334,43 @@
       color: var(--muted);
       text-align: center;
     }
+    /* ===== 设备状态条 ===== */
+    .device-status-bar {
+      font-size: 10px;
+      margin-top: 4px;
+      min-height: 14px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .device-status-bar.ok   { color: var(--green); }
+    .device-status-bar.warn { color: var(--orange); }
+    .device-status-bar.err  { color: var(--red); }
+    .device-status-bar.loading { color: var(--yellow); }
+
+    /* ===== 内录引导提示 ===== */
+    #loopGuide {
+      background: rgba(88,166,255,0.07);
+      border: 1px solid rgba(88,166,255,0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      display: none;
+      line-height: 1.6;
+    }
+    #loopGuide.visible { display: block; }
+    #loopGuide strong { color: var(--accent); }
+    #loopGuide ol { margin: 4px 0 0 14px; padding: 0; }
+    #loopGuide li { margin-bottom: 2px; }
+    #loopGuideToggle {
+      background: none; border: none; color: var(--accent);
+      font-size: 11px; cursor: pointer; padding: 0;
+      text-decoration: underline; margin-top: 4px;
+    }
+
+    /* ===== 空状态 ===== */
     .empty-icon { font-size: 44px; opacity: 0.25; }
     .empty-state p { font-size: 13px; max-width: 240px; line-height: 1.6; }
 
@@ -413,6 +450,20 @@
       </div>
       <div id="deviceStatusLoop"></div>
       <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备</button>
+
+    <!-- 内录引导 -->
+    <div id="loopGuide">
+      <strong>💡 启用系统内录（Windows WASAPI Loopback）：</strong>
+      <ol>
+        <li>右键点击任务栏<span style="color:var(--accent)">🔊 音量图标</span> → 「打开声音设置」</li>
+        <li>页面拉到底 → 「声音控制面板」</li>
+        <li>切换到「录制」选项卡</li>
+        <li>右键空白处 → ☑️「显示禁用的设备」</li>
+        <li>找到「<strong>立体声混音</strong>」或「<strong>WASAPI Loopback</strong>」→ 右键 → 启用</li>
+        <li>点击「确定」后点此页「↻ 刷新设备」</li>
+      </ol>
+    </div>
+    <button id="loopGuideToggle" style="display:none">查看内录启用帮助</button>
     </div>
 
     <!-- 选项 -->
@@ -480,7 +531,7 @@
     <div id="transcriptLog">
       <div class="empty-state" id="emptyState">
         <div class="empty-icon">🎙️</div>
-        <p>选择麦克风后点击「开始转写」<br/>首次使用请允许浏览器调用麦克风</p>
+        <p>选择麦克风后点击「开始转写」<br/>首次使用请允许系统调用麦克风权限</p>
       </div>
     </div>
   </div>
@@ -595,17 +646,39 @@
     const ready = micOk && loopOk;
     btnStart.disabled = !ready || isRunning;
     setStatus(ready ? 'idle' : 'warn', ready ? '就绪' : '请选择设备');
+
+    // 引导提示：内录未找到时显示帮助
+    const guideEl = document.getElementById('loopGuide');
+    const guideToggle = document.getElementById('loopGuideToggle');
+    if (!loopFound) {
+      guideEl.classList.add('visible');
+      guideToggle.style.display = 'block';
+    } else {
+      guideEl.classList.remove('visible');
+      guideToggle.style.display = 'none';
+    }
+    if (guideToggle) {
+      guideToggle.addEventListener('click', () => {
+        guideEl.classList.toggle('visible');
+      });
+    }
   }
 
   function isLoopback(name) {
     const n = name.toLowerCase();
+    // Windows WASAPI Loopback（驱动和语言不同，名称各异）
     return n.includes('loopback') ||
+           n.includes('wasapi loopback') ||
            n.includes('stereo mix') ||
            n.includes('立体声混音') ||
-           n.includes('内录') ||
-           n.includes('wasapi') ||
+           n.includes('立体声 mix') ||
            n.includes('what u hear') ||
-           n.includes('virtual');
+           n.includes('what i hear') ||
+           n.includes('virtual audio cable') ||
+           n.includes('vac') ||
+           n.includes('cable input') ||
+           n.includes('blackhole') ||
+           n.includes('soundflower');
   }
 
   // ===== 状态显示工具 =====
