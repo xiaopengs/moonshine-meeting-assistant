@@ -163,6 +163,43 @@ git log --oneline -10
 ```
 
 
+## 更新记录（2026-04-12）
+
+### 本次提交：UI v2.0 商业化重构
+
+**重大更新：完整 UI 重设计（参考 Linear / Raycast 风格）**
+
+#### 新增功能
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 品牌启动页 + Onboarding | ✅ 完成 | 月球动画 + 3步引导 |
+| 紫蓝色设计系统 | ✅ 完成 | CSS 变量全套，--accent: #7c6af5 |
+| 三栏布局 | ✅ 完成 | 左侧控制 / 中央字幕 / 右侧AI面板 |
+| VAD 波形可视化 | ✅ 完成 | Canvas 实时绘制 |
+| 字幕卡片动画 | ✅ 完成 | slide-up + fade-in，--ease-out |
+| AI 摘要面板 | ✅ 完成 | 实时摘要生成Mock + 关键词标签 |
+| 说话比例图表 | ✅ 完成 | 麦克风/内录实时比例条 |
+| 语速指示器 | ✅ 完成 | 字/分钟 实时计算 |
+| 键盘快捷键 | ✅ 完成 | ⌘R/⌘S/⌘E + Esc |
+| 全局状态指示器 | ✅ 完成 | 标题栏录制脉冲光环 |
+| 快捷键 Toast | ✅ 完成 | 操作反馈动画 |
+| 可折叠右侧面板 | ✅ 完成 | 点击侧边栏按钮切换 |
+| 启动页引导动画 | ✅ 完成 | 月球 + 步骤动画 |
+
+#### 技术细节
+- CSS 变量系统：15+ 语义化 token
+- 字体：Inter + JetBrains Mono + Noto Sans SC
+- 动效：--ease-out / --ease-spring 缓动曲线
+- Canvas DPR 适配：高分辨率屏幕清晰渲染
+- 响应式：< 900px 右侧面板默认折叠
+
+#### 文件变更
+- `renderer/index.html` — 完全重写（1461行）
+- `doc/UI-SPEC-v2.md` — 新增产品设计规格书
+
+---
+
 ## 八、决策记录（已确认）
 
 | 项目 | 决策 | 日期 |
@@ -183,3 +220,39 @@ buffer 余量：~20ms
 → 160ms × 16000 Hz = 2560 samples
 已写入：transcribe.py  CHUNK_DURATION=0.16
 ```
+
+---
+
+## 更新记录（2026-03-21）
+
+### 本次提交：M1 UI 完善 + M2 Loopback 引导
+
+**M1 状态更新：🟢 接近完成**
+
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| Electron UI 开发 | 🟢 接近完成 | 补全 CSS 样式+文案修正 |
+| 设备选择 + 实时字幕 | ✅ 已完成 | IPC/JS 逻辑完整 |
+| 统计面板 | ✅ 已完成 | mic/loop 字数/时长 |
+| 导出 MD/SRT/TXT | ✅ 已完成 | 含时间戳 |
+| 图标/打包资源 | 🟢 本次修复 | icon.png/.ico 已生成 |
+
+**M2 状态更新：🟡 进行中（引导 UI 已完成，核心功能已就绪）**
+
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| Windows WASAPI Loopback 打通 | 🟢 代码就绪 | sounddevice + isLoopback() 增强 |
+| Loopback 设备引导 UI | 🟢 本次完成 | 可折叠帮助面板 + 刷新重试 |
+| 内录启用帮助 | 🟢 本次完成 | 6 步操作指引 |
+| macOS BlackHole | 🔴 待开发 | 优先级低 |
+| 双路同时采集 | ✅ 已预留 | transcribe.py 双 Transcriber |
+
+**待验证（M2 阻塞项）：**
+- [ ] 在 Windows 上实测：sounddevice 是否能枚举到 WASAPI Loopback 设备
+- [ ] VAD 阈值 VAD_THRESHOLD=0.01 实测调优
+- [ ] 真实会议场景（腾讯会议/Zoom）内录 WER 验证
+
+**下一步行动：**
+1. Windows 机器上运行 `npm run build -- --win` 验证打包
+2. 在 Windows 上实测内录检测（sounddevice.query_devices() 输出）
+3. 根据实测调整 isLoopback() 关键词

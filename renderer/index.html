@@ -1,879 +1,1461 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Moonshine 会议助手</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Moonshine 会议助手</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:#09090e;color:#ededf0;
+  font-family:'Inter','Noto Sans SC',-apple-system,sans-serif;
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+select,input{font-family:inherit}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#26263a;border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:#363650}
 
-    :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface2: #1c2128;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #7d8590;
-      --accent: #58a6ff;
-      --green: #3fb950;
-      --red: #f85149;
-      --yellow: #d29922;
-      --orange: #db6d28;
-      --radius: 8px;
-    }
+/* ===== DESIGN TOKENS ===== */
+:root{
+--bg-base:#09090e;--bg-surface:#111118;--bg-elevated:#18181f;
+--bg-input:#1c1c26;--bg-hover:#20202c;
+--border-subtle:#1c1c28;--border:#26263a;--border-strong:#363650;
+--accent:#7c6af5;--accent-hover:#9585f8;
+--accent-dim:rgba(124,106,245,0.12);--accent-dim2:rgba(124,106,245,0.07);
+--recording:#f25757;--recording-dim:rgba(242,87,87,0.12);
+--success:#34d399;--success-dim:rgba(52,211,153,0.12);
+--warning:#f5a623;--warning-dim:rgba(245,166,35,0.12);
+--info:#60a5fa;--info-dim:rgba(96,165,250,0.12);
+--text-primary:#ededf0;--text-secondary:#9092a8;
+----text-muted:#555770;--text-disabled:#38384a;
+--font-ui:'Inter','Noto Sans SC',-apple-system,sans-serif;
+--font-mono:'JetBrains Mono','Fira Code',monospace;
+--sp1:4px;--sp2:8px;--sp3:12px;--sp4:16px;--sp5:20px;--sp6:24px;--sp8:32px;--sp10:40px;--sp12:48px;
+--r-sm:4px;--r:8px;--r-lg:12px;--r-xl:20px;--r-full:9999px;
+--ease-out:cubic-bezier(0.16,1,0.3,1);
+----ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+----ease-in-out:cubic-bezier(0.4,0,0.2,1);
+--titlebar-h:40px;--sidebar-w:252px;--panel-w:276px;
+}
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      user-select: none;
-    }
+/* ===== TITLEBAR ===== */
+.titlebar{
+  height:var(--titlebar-h);background:var(--bg-surface);
+  border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;padding:0 var(--sp4);gap:var(--sp3);
+  flex-shrink:0;position:relative;-webkit-app-region:drag}
+.titlebar-brand{display:flex;align-items:center;gap:var(--sp2);-webkit-app-region:no-drag}
+.titlebar-logo{
+  width:22px;height:22px;background:var(--accent);
+  border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0}
+.titlebar-name{font-size:13px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+.titlebar-version{
+  font-size:10px;color:#555770;
+  background:var(--bg-elevated);border:1px solid var(--border-subtle);
+  padding:1px 6px;border-radius:var(--r-full)}
+.titlebar-spacer{flex:1;-webkit-app-region:drag}
+.titlebar-right{display:flex;align-items:center;gap:var(--sp3);-webkit-app-region:no-drag}
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg-elevated);border:1px solid var(--border-subtle);
+  border-radius:var(--r-full);padding:3px 10px 3px 7px;
+  font-size:11px;color:var(--text-secondary);transition:all 0.2s var(--ease-out)}
+.status-pill .dot{
+  width:7px;height:7px;border-radius:50%;
+  background:#555770;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.status-pill.idle .dot{background:var(--success)}
+.status-pill.running{border-color:rgba(242,87,87,0.25)}
+.status-pill.running .dot{background:var(--recording);box-shadow:0 0 6px var(--recording);animation:dpulse 2s ease-in-out infinite}
+.status-pill.loading .dot{background:var(--warning);animation:dblink 0.8s ease-in-out infinite}
+.status-pill.error{border-color:rgba(242,87,87,0.25)}
+.status-pill.error .dot{background:var(--recording)}
+.status-pill.error{color:var(--recording)}
+@keyframes dpulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes dblink{0%,100%{opacity:1}50%{opacity:.3}}
 
-    /* ===== 标题栏 ===== */
-    header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-      -webkit-app-region: drag;
-    }
-    header h1 {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent);
-      -webkit-app-region: no-drag;
-    }
-    .badge {
-      font-size: 10px;
-      padding: 2px 7px;
-      border-radius: 20px;
-      background: rgba(88,166,255,0.15);
-      color: var(--accent);
-      border: 1px solid rgba(88,166,255,0.3);
-      -webkit-app-region: no-drag;
-    }
-    .spacer { flex: 1; -webkit-app-region: drag; }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      -webkit-app-region: no-drag;
-    }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--muted);
-      transition: background 0.3s, box-shadow 0.3s;
-      flex-shrink: 0;
-    }
-    .status-dot.running {
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    .status-dot.error { background: var(--red); }
-    .status-dot.loading { background: var(--yellow); animation: blink 0.8s ease-in-out infinite; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
-    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-    #statusText { font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* ===== LAYOUT ===== */
+.app-body{display:flex;flex:1;overflow:hidden;height:calc(100vh - var(--titlebar-h))}
 
-    /* ===== 主布局 ===== */
-    main { display: flex; flex: 1; overflow: hidden; }
+/* ===== SIDEBAR ===== */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--bg-surface);border-right:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
 
-    /* ===== 左侧面板 ===== */
-    aside {
-      width: 300px;
-      border-right: 1px solid var(--border);
-      background: var(--surface);
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
+.panel{padding:var(--sp4);border-bottom:1px solid var(--border-subtle)}
+.panel:last-child{border-bottom:none}
 
-    .panel-section {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
-    }
+.panel-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#555770;margin-bottom:var(--sp3);
+  display:flex;align-items:center;gap:var(--sp2)}
 
-    .panel-title {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
+.field{margin-bottom:var(--sp3)}
+.field:last-child{margin-bottom:0}
+.field-label{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:var(--sp1)}
+.select-wrap{position:relative}
+.select-wrap::after{
+  content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  color:#555770;pointer-events:none;font-size:11px}
+select{
+  width:100%;background:var(--bg-input);border:1px solid var(--border);
+  color:var(--text-primary);border-radius:var(--r);
+  padding:7px 28px 7px 10px;font-size:12px;
+  outline:none;appearance:none;-webkit-appearance:none;
+  cursor:pointer;transition:border-color .15s,box-shadow .15s}
+select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+select:disabled{opacity:.4;cursor:not-allowed}
+select option{background:var(--bg-elevated)}
 
-    /* ===== 设备选择 ===== */
-    .device-wrap { position: relative; margin-bottom: 8px; }
+.device-status{
+  font-size:10px;margin-top:5px;
+  display:flex;align-items:center;gap:4px;min-height:14px;color:#555770}
+.device-status .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.device-status.ok{color:var(--success)}
+.device-status.ok .dot{background:var(--success)}
+.device-status.warn{color:var(--warning)}
+.device-status.warn .dot{background:var(--warning)}
+.device-status.err{color:var(--recording)}
+.device-status.err .dot{background:var(--recording)}
 
-    select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: var(--radius);
-      padding: 8px 32px 8px 10px;
-      font-size: 12px;
-      outline: none;
-      transition: border-color 0.2s;
-      appearance: none;
-      -webkit-appearance: none;
-      cursor: pointer;
-    }
-    select:focus { border-color: var(--accent); }
-    select:disabled { opacity: 0.45; cursor: not-allowed; }
-    select option { background: var(--surface2); padding: 4px; }
+.refresh-btn{
+  width:100%;margin-top:var(--sp2);padding:5px 0;
+  background:none;border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text-secondary);font-size:11px;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:var(--sp1)}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.refresh-btn:disabled{opacity:.35;cursor:not-allowed}
 
-    /* 下拉箭头 */
-    .device-wrap::after {
-      content: '▾';
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--muted);
-      pointer-events: none;
-      font-size: 12px;
-    }
+.loopback-guide{
+  background:var(--accent-dim2);border:1px solid rgba(124,106,245,.15);
+  border-radius:var(--r);padding:var(--sp3);margin-top:var(--sp2);
+  font-size:11px;color:var(--text-secondary);line-height:1.6;display:none}
+.loopback-guide.visible{display:block}
+.loopback-guide strong{color:var(--accent);display:block;margin-bottom:4px;font-size:11px}
+.loopback-guide ol{margin:4px 0 0 14px;padding:0}
+.loopback-guide li{margin-bottom:2px}
+.loopback-guide li span{color:var(--accent)}
+.guide-toggle{
+  font-size:10px;color:var(--accent);background:none;border:none;
+  padding:3px 0;cursor:pointer;text-decoration:underline;display:none;margin-top:var(--sp1)}
+.guide-toggle.visible{display:block}
 
-    /* 设备标签 */
-    .device-hint {
-      font-size: 10px;
-      color: var(--muted);
-      margin-bottom: 6px;
-      line-height: 1.4;
-    }
-    .device-hint.warn { color: var(--orange); }
+/* Waveform */
+.waveform-wrap{
+  background:var(--bg-input);border:1px solid var(--border);
+  border-radius:var(--r);padding:var(--sp2);
+  margin-bottom:var(--sp3);position:relative;overflow:hidden;height:60px;
+  display:flex;align-items:center}
+#waveformCanvas{width:100%;height:44px}
+.waveform-idle{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  transition:opacity .3s}
+.waveform-idle.hidden{display:none}
+.waveform-idle .bar{
+  width:3px;border-radius:2px;background:var(--border-strong);
+  animation:idleBar 1.4s ease-in-out infinite}
+.waveform-idle .bar:nth-child(1){height:8px;animation-delay:0s}
+.waveform-idle .bar:nth-child(2){height:16px;animation-delay:.1s}
+.waveform-idle .bar:nth-child(3){height:24px;animation-delay:.2s}
+.waveform-idle .bar:nth-child(4){height:16px;animation-delay:.3s}
+.waveform-idle .bar:nth-child(5){height:8px;animation-delay:.4s}
+@keyframes idleBar{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.4)}}
+.vad-label{
+  position:absolute;top:5px;left:8px;
+  font-size:9px;color:#555770;
+  display:flex;align-items:center;gap:3px;transition:color .2s}
+.vad-label.speaking{color:var(--success)}
+.vad-label.speaking .vad-dot{background:var(--success);box-shadow:0 0 5px var(--success)}
+.vad-dot{width:5px;height:5px;border-radius:50%;background:#555770;transition:background .1s,box-shadow .1s}
+.waveform-label{
+  position:absolute;bottom:5px;right:8px;
+  font-size:9px;color:#555770;font-family:var(--font-mono)}
 
-    /* 刷新按钮 */
-    .refresh-btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      border-radius: 4px;
-      padding: 3px 8px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
-      margin-top: 6px;
-      width: 100%;
-    }
-    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp2)}
+.stat-card{
+  background:var(--bg-input);border:1px solid var(--border-subtle);
+  border-radius:var(--r);padding:var(--sp2) var(--sp3);
+  transition:border-color .15s}
+.stat-card:hover{border-color:var(--border)}
+.stat-label{font-size:10px;color:#555770;margin-bottom:2px}
+.stat-value{font-size:17px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.stat-value.green{color:var(--success)}
+.stat-value.blue{color:var(--info)}
+.stat-value.orange{color:var(--warning)}
 
-    /* ===== 设备状态条 ===== */
-    #deviceStatus {
-      margin-top: 6px;
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      min-height: 16px;
-    }
-    #deviceStatus.ok { color: var(--green); }
-    #deviceStatus.warn { color: var(--orange); }
-    #deviceStatus.err { color: var(--red); }
-    #deviceStatus.loading { color: var(--yellow); }
+/* Toggles */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp2)}
+.toggle-row:last-child{margin-bottom:0}
+.toggle-info{flex:1}
+.toggle-name{font-size:12px;font-weight:500;color:var(--text-primary)}
+.toggle-desc{font-size:10px;color:#555770;margin-top:1px}
+.toggle{position:relative;width:32px;height:18px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;background:var(--border-strong);border-radius:var(--r-full);
+  transition:background .2s var(--ease-out);cursor:pointer}
+.toggle-slider::before{
+  content:'';position:absolute;width:12px;height:12px;border-radius:50%;
+  background:white;left:3px;top:3px;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.toggle input:checked+.toggle-slider{background:var(--accent)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(14px)}
+.toggle input:disabled+.toggle-slider{opacity:.35;cursor:not-allowed}
 
-    /* ===== 选项 ===== */
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 9px;
-    }
-    .toggle-label { font-size: 12px; color: var(--text); line-height: 1.3; }
-    .toggle {
-      position: relative; width: 34px; height: 18px; flex-shrink: 0;
-    }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider {
-      position: absolute; inset: 0;
-      background: var(--border); border-radius: 20px;
-      transition: background 0.2s; cursor: pointer;
-    }
-    .toggle-slider::before {
-      content: ''; position: absolute;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: white; left: 3px; top: 3px;
-      transition: transform 0.2s;
-    }
-    .toggle input:checked + .toggle-slider { background: var(--accent); }
-    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+/* Control area */
+.ctrl-area{padding:var(--sp4);margin-top:auto}
+.record-btn{
+  width:100%;height:52px;border-radius:var(--r-lg);
+  font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:var(--sp2);
+  transition:all .2s var(--ease-out);position:relative;overflow:hidden}
+.record-btn.start{background:var(--success);color:white}
+.record-btn.start:hover{background:#2ec489;transform:scale(1.01)}
+.record-btn.start:active{transform:scale(.99)}
+.record-btn.stop{background:var(--recording);color:white}
+.record-btn.stop:hover{background:#e04848}
+.record-btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important}
+.record-btn .pulse-ring{
+  position:absolute;inset:-4px;border-radius:calc(var(--r-lg) + 4px);
+  border:2px solid var(--recording);opacity:0;pointer-events:none}
+.record-btn.stop .pulse-ring{animation:pulseRing 2s ease-out infinite}
+@keyframes pulseRing{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
 
-    /* ===== 统计 ===== */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .stat-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 10px;
-    }
-    .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
-    .stat-val { font-size: 18px; font-weight: 700; color: var(--text); }
-    .stat-val.green { color: var(--green); }
-    .stat-val.blue { color: var(--accent); }
-    .stat-val.orange { color: var(--orange); }
+.export-row{display:flex;gap:var(--sp2);margin-top:var(--sp2)}
+.export-select{flex:1}
+.export-select select{
+  padding:6px 8px;font-size:11px;background:var(--bg-elevated)}
+.export-btn{
+  flex:1;padding:6px var(--sp3);
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text-secondary);
+  font-size:11px;font-weight:500;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:4px}
+.export-btn:hover{border-color:var(--accent);color:var(--accent)}
+.export-btn:disabled{opacity:.3;cursor:not-allowed}
 
-    /* ===== 按钮 ===== */
-    .btn-row {
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: auto;
-    }
-    .btn {
-      width: 100%;
-      padding: 10px 0;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-    .btn:active:not(:disabled) { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .btn-start { background: var(--green); color: white; }
-    .btn-start:hover:not(:disabled) { opacity: 0.88; }
-    .btn-stop { background: var(--red); color: white; }
-    .btn-stop:hover:not(:disabled) { opacity: 0.88; }
-    .btn-save { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-    .btn-save:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.shortcut-hint{
+  text-align:center;font-size:10px;color:#555770;margin-top:var(--sp2)}
+.shortcut-hint kbd{
+  font-family:var(--font-mono);
+  background:var(--bg-elevated);border:1px solid var(--border-subtle);
+  border-radius:3px;padding:0 4px;font-size:9px}
 
-    /* ===== 右侧字幕区 ===== */
-    #transcriptPanel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+/* ===== CENTER ===== */
+.center{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-base)}
 
-    .transcript-header {
-      padding: 10px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-      background: var(--surface);
-    }
-    .transcript-header span { font-size: 12px; color: var(--muted); }
-    .transcript-count {
-      background: rgba(88,166,255,0.15);
-      color: var(--accent);
-      font-size: 11px;
-      padding: 1px 6px;
-      border-radius: 10px;
-    }
-    #elapsedTime { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.transcript-header{
+  padding:10px var(--sp5);border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;gap:var(--sp3);flex-shrink:0;background:var(--bg-surface)}
+.transcript-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.transcript-badge{
+  font-size:10px;padding:1px 7px;border-radius:var(--r-full);
+  background:var(--accent-dim);color:var(--accent);font-weight:500}
+.transcript-meta{margin-left:auto;display:flex;align-items:center;gap:var(--sp3)}
+.transcript-time{
+  font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.transcript-clear{
+  font-size:11px;color:#555770;padding:2px 8px;border-radius:var(--r-sm);
+  border:1px solid transparent;transition:all .15s}
+.transcript-clear:hover{color:var(--recording);border-color:rgba(242,87,87,.2)}
 
-    #transcriptLog {
-      flex: 1;
-      overflow-y: auto;
-      padding: 14px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    #transcriptLog::-webkit-scrollbar { width: 4px; }
-    #transcriptLog::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+#transcriptLog{
+  flex:1;overflow-y:auto;padding:var(--sp4) var(--sp5);
+  display:flex;flex-direction:column;gap:var(--sp2)}
 
-    /* 转写条目 */
-    .entry {
-      display: flex;
-      gap: 10px;
-      animation: slideIn 0.18s ease;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .entry-icon {
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; flex-shrink: 0; margin-top: 1px;
-    }
-    .entry-icon.mic    { background: rgba(63,185,80,0.15);  color: var(--green); }
-    .entry-icon.loopback{ background: rgba(88,166,255,0.15);  color: var(--accent); }
-    .entry-icon.system { background: rgba(210,153,34,0.15);  color: var(--yellow); }
-    .entry-body { flex: 1; }
-    .entry-src  { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
-    .entry-text { font-size: 14px; line-height: 1.65; color: var(--text); word-break: break-word; }
-    .entry-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.t-card{
+  background:var(--bg-surface);border:1px solid var(--border-subtle);
+  border-radius:var(--r-lg);padding:var(--sp3) var(--sp4);
+  display:flex;gap:var(--sp3);animation:cardIn .22s var(--ease-out) both;
+  transition:border-color .15s,box-shadow .15s}
+.t-card:hover{border-color:var(--border);box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.t-card.latest{border-left:2px solid var(--accent)}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-    /* 空状态 */
-    .empty-state {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      color: var(--muted);
-      text-align: center;
-    }
-    /* ===== 设备状态条 ===== */
-    .device-status-bar {
-      font-size: 10px;
-      margin-top: 4px;
-      min-height: 14px;
-      padding: 1px 4px;
-      border-radius: 4px;
-      display: inline-block;
-    }
-    .device-status-bar.ok   { color: var(--green); }
-    .device-status-bar.warn { color: var(--orange); }
-    .device-status-bar.err  { color: var(--red); }
-    .device-status-bar.loading { color: var(--yellow); }
+.t-icon{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.t-icon.mic{background:var(--success-dim)}
+.t-icon.loop{background:var(--info-dim)}
+.t-icon.sys{background:var(--warning-dim)}
+.t-body{flex:1;min-width:0}
+.t-meta{display:flex;align-items:center;gap:var(--sp2);margin-bottom:4px}
+.t-src{font-size:10px;font-weight:600;letter-spacing:.04em}
+.t-src.mic{color:var(--success)}
+.t-src.loop{color:var(--info)}
+.t-src.sys{color:var(--warning)}
+.t-time{font-family:var(--font-mono);font-size:10px;color:#555770}
+.t-text{font-size:14px;line-height:1.7;color:var(--text-primary);word-break:break-word}
+.t-text .kw-highlight{background:var(--accent-dim);color:var(--accent);border-radius:2px;padding:0 2px;cursor:pointer;transition:background .15s}
+.t-text .kw-highlight:hover{background:rgba(124,106,245,.25)}
 
-    /* ===== 内录引导提示 ===== */
-    #loopGuide {
-      background: rgba(88,166,255,0.07);
-      border: 1px solid rgba(88,166,255,0.2);
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 6px;
-      display: none;
-      line-height: 1.6;
-    }
-    #loopGuide.visible { display: block; }
-    #loopGuide strong { color: var(--accent); }
-    #loopGuide ol { margin: 4px 0 0 14px; padding: 0; }
-    #loopGuide li { margin-bottom: 2px; }
-    #loopGuideToggle {
-      background: none; border: none; color: var(--accent);
-      font-size: 11px; cursor: pointer; padding: 0;
-      text-decoration: underline; margin-top: 4px;
-    }
+/* Empty state */
+.empty-state{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:var(--sp4);text-align:center;padding:var(--sp8)}
+.empty-illustration{
+  width:80px;height:80px;background:var(--bg-surface);
+  border:1px solid var(--border);border-radius:var(--r-xl);
+  display:flex;align-items:center;justify-content:center;
+  animation:floatIcon 3s ease-in-out infinite}
+@keyframes floatIcon{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.empty-illustration .icon{font-size:36px;opacity:.5}
+.empty-title{font-size:15px;font-weight:600;color:var(--text-primary)}
+.empty-desc{font-size:12px;color:var(--text-secondary);max-width:280px;line-height:1.6}
+.empty-hint{
+  font-size:11px;color:#555770;
+  background:var(--bg-surface);border:1px solid var(--border-subtle);
+  border-radius:var(--r);padding:var(--sp2) var(--sp4)}
+.empty-hint kbd{
+  font-family:var(--font-mono);background:var(--bg-elevated);
+  border:1px solid var(--border);border-radius:3px;padding:1px 5px;
+  font-size:10px;color:var(--accent)}
 
-    /* ===== 空状态 ===== */
-    .empty-icon { font-size: 44px; opacity: 0.25; }
-    .empty-state p { font-size: 13px; max-width: 240px; line-height: 1.6; }
+/* ===== RIGHT PANEL ===== */
+.ai-panel{
+  width:var(--panel-w);flex-shrink:0;
+  background:var(--bg-surface);border-left:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:width .25s var(--ease-out),opacity .25s}
+.ai-panel.collapsed{width:0;opacity:0;overflow:hidden}
 
-    /* ===== 日志面板 ===== */
-    #logPanel {
-      border-top: 1px solid var(--border);
-      background: #080b10;
-      max-height: 100px;
-      overflow-y: auto;
-      flex-shrink: 0;
-      display: none;
-    }
-    #logPanel.visible { display: block; }
-    #logContent {
-      padding: 7px 14px;
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 11px;
-      color: #7ee787;
-      line-height: 1.75;
-    }
-    .log-err { color: var(--red); }
-    .log-warn { color: var(--yellow); }
-    .log-info { color: var(--muted); }
+.ai-header{
+  padding:var(--sp4);border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;gap:var(--sp2);flex-shrink:0}
+.ai-header-icon{
+  width:24px;height:24px;background:var(--accent-dim);
+  border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:12px}
+.ai-header-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.ai-header-badge{
+  margin-left:auto;font-size:9px;padding:1px 6px;
+  background:var(--accent-dim);color:var(--accent);
+  border-radius:var(--r-full);font-weight:600;letter-spacing:.05em}
+.ai-body{
+  flex:1;overflow-y:auto;padding:var(--sp4);
+  display:flex;flex-direction:column;gap:var(--sp4)}
 
-    /* ===== 环境检测提示 ===== */
-    #envAlert {
-      background: rgba(219,109,40,0.1);
-      border: 1px solid rgba(219,109,40,0.3);
-      border-radius: var(--radius);
-      padding: 8px 12px;
-      font-size: 11px;
-      color: var(--orange);
-      margin-top: 6px;
-      display: none;
-      line-height: 1.5;
-    }
-    #envAlert.visible { display: block; }
-  </style>
+.ai-section-title{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#555770;margin-bottom:var(--sp2);
+  display:flex;align-items:center;gap:var(--sp2)}
+
+.summary-card{
+  background:var(--bg-input);border:1px solid var(--border-subtle);
+  border-radius:var(--r);padding:var(--sp3);
+  font-size:12px;line-height:1.7;color:var(--text-secondary);min-height:60px}
+.summary-card .placeholder{color:#555770;font-style:italic}
+.summary-updating{
+  position:absolute;top:6px;right:8px;font-size:9px;color:var(--accent);
+  display:flex;align-items:center;gap:3px;opacity:0;transition:opacity .2s}
+.summary-card.updating .summary-updating{opacity:1}
+.updating-dot{
+  width:4px;height:4px;border-radius:50%;background:var(--accent);
+  animation:dblink .8s ease-in-out infinite}
+
+.kw-tags{display:flex;flex-wrap:wrap;gap:var(--sp1)}
+.kw-tag{
+  font-size:10px;padding:2px 8px;
+  background:var(--accent-dim2);color:var(--accent);
+  border:1px solid rgba(124,106,245,.15);border-radius:var(--r-full);
+  cursor:pointer;transition:all .15s;font-weight:500}
+.kw-tag:hover{background:var(--accent-dim);border-color:var(--accent)}
+
+.ratio-chart{display:flex;align-items:center;gap:var(--sp3)}
+.ratio-bar-wrap{
+  flex:1;height:6px;background:var(--bg-elevated);
+  border-radius:var(--r-full);overflow:hidden;display:flex}
+.ratio-seg{height:100%;transition:width .5s var(--ease-out)}
+.ratio-seg.mic{background:var(--success)}
+.ratio-seg.loop{background:var(--info)}
+.ratio-legend{display:flex;flex-direction:column;gap:3px}
+.ratio-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#555770}
+.ratio-legend-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ratio-legend-item .dot.mic{background:var(--success)}
+.ratio-legend-item .dot.loop{background:var(--info)}
+
+.speed-row{display:flex;justify-content:space-between;align-items:center}
+.speed-val{font-size:18px;font-weight:700;color:var(--text-primary)}
+.speed-unit{font-size:10px;color:#555770;margin-left:2px}
+.speed-bar{margin-top:5px;height:4px;background:var(--bg-elevated);border-radius:var(--r-full);overflow:hidden}
+.speed-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--accent),var(--info));
+  border-radius:var(--r-full);transition:width .5s var(--ease-out)}
+
+.panel-toggle-btn{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:18px;height:48px;background:var(--bg-elevated);
+  border:1px solid var(--border);border-right:none;
+  border-radius:var(--r) 0 0 var(--r);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:11px;color:#555770;transition:all .15s;
+  z-index:10}
+.panel-toggle-btn:hover{color:var(--accent);background:var(--accent-dim)}
+
+/* ===== ONBOARDING ===== */
+#onboarding{
+  position:fixed;inset:0;z-index:1000;
+  background:#09090e;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .4s var(--ease-out)}
+#onboarding.active{opacity:1;pointer-events:all}
+
+.onboard-visual{
+  width:100px;height:100px;margin-bottom:var(--sp8);
+  position:relative;display:flex;align-items:center;justify-content:center}
+.moon{
+  width:80px;height:80px;background:linear-gradient(135deg,#2a2a3e,#1a1a28);
+  border-radius:50%;position:relative;
+  box-shadow:0 0 40px rgba(124,106,245,.3),0 0 80px rgba(124,106,245,.1),inset -8px -8px 20px rgba(0,0,0,.5)}
+.moon::before{
+  content:'';position:absolute;inset:12px;
+  background:linear-gradient(135deg,#3a3a50 0%,#252535 50%,#1a1a28 100%);
+  border-radius:50%}
+.moon::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:rgba(124,106,245,.08)}
+.crater{
+  position:absolute;border-radius:50%;
+  background:rgba(0,0,0,.3)}
+.crater:nth-child(1){width:16px;height:16px;top:15px;left:20px}
+.crater:nth-child(2){width:10px;height:10px;top:40px;left:45px}
+.crater:nth-child(3){width:8px;height:8px;top:52px;left:24px}
+
+.onboard-glow{
+  position:absolute;inset:-20px;
+  background:radial-gradient(ellipse,rgba(124,106,245,.15),transparent 70%);
+  animation:glowPulse 4s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+
+.onboard-title{
+  font-size:32px;font-weight:700;color:var(--text-primary);
+  letter-spacing:-.03em;margin-bottom:var(--sp2);text-align:center}
+.onboard-subtitle{
+  font-size:14px;color:var(--text-secondary);margin-bottom:var(--sp10);text-align:center}
+
+.onboard-steps{display:flex;flex-direction:column;gap:var(--sp3);width:320px}
+.o-step{
+  background:var(--bg-surface);border:1px solid var(--border-subtle);
+  border-radius:var(--r-lg);padding:var(--sp4);
+  display:flex;align-items:center;gap:var(--sp4);
+  animation:stepIn .3s var(--ease-out) both}
+.o-step:nth-child(1){animation-delay:.1s}
+.o-step:nth-child(2){animation-delay:.2s}
+.o-step:nth-child(3){animation-delay:.3s}
+@keyframes stepIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.o-step-icon{
+  width:36px;height:36px;flex-shrink:0;
+  background:var(--accent-dim);border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;font-size:16px}
+.o-step-icon.done{background:var(--success-dim)}
+.o-step-icon .step-check{color:var(--success);font-size:16px}
+.o-step-icon .step-num{color:var(--accent);font-size:13px;font-weight:600}
+.o-step-title{font-size:13px;font-weight:600;color:var(--text-primary)}
+.o-step-desc{font-size:11px;color:var(--text-secondary);margin-top:2px}
+
+.onboard-start-btn{
+  margin-top:var(--sp6);width:320px;height:48px;
+  background:var(--accent);color:white;border-radius:var(--r-lg);
+  font-size:14px;font-weight:600;transition:all .2s var(--ease-out);
+  display:flex;align-items:center;justify-content:center;gap:var(--sp2)}
+.onboard-start-btn:hover{background:var(--accent-hover);transform:scale(1.01)}
+.onboard-start-btn:active{transform:scale(.99)}
+.onboard-skip{
+  margin-top:var(--sp3);font-size:11px;color:#555770;background:none;border:none;cursor:pointer;
+  transition:color .15s}
+.onboard-skip:hover{color:var(--text-secondary)}
+
+/* ===== LOG PANEL ===== */
+#logPanel{
+  border-top:1px solid var(--border-subtle);background:#080b10;
+  max-height:80px;overflow-y:auto;flex-shrink:0;display:none}
+#logPanel.visible{display:block}
+#logContent{
+  padding:6px var(--sp4);
+  font-family:var(--font-mono);font-size:11px;color:#7ee787;line-height:1.75}
+.log-err{color:#f85149}
+.log-warn{color:#d29922}
+.log-info{color:#555770}
+
+/* ===== ENVIRONMENT ALERT ===== */
+#envAlert{
+  margin:var(--sp4);margin-top:0;
+  background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);
+  border-radius:var(--r);padding:var(--sp3);font-size:11px;
+  color:var(--warning);line-height:1.5;display:none}
+#envAlert.visible{display:block}
+
+/* ===== KEYBOARD SHORTCUT OVERLAY ===== */
+#shortcutOverlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(9,9,14,.8);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .2s}
+#shortcutOverlay.active{opacity:1;pointer-events:all}
+.shortcut-toast{
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:var(--r-xl);padding:var(--sp5) var(--sp8);
+  display:flex;align-items:center;gap:var(--sp4);
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  animation:toastIn .25s var(--ease-spring)}
+@keyframes toastIn{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.shortcut-toast-icon{font-size:28px}
+.shortcut-toast-text{font-size:14px;font-weight:600;color:var(--text-primary)}
+.shortcut-toast-hint{font-size:11px;color:var(--text-secondary);margin-top:2px}
+</style>
 </head>
 <body>
 
-<!-- 标题栏 -->
-<header>
-  <h1>🌙 Moonshine</h1>
-  <span class="badge">v1.0</span>
-  <div style="flex:1"></div>
-  <div class="header-right">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">待机</span>
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="titlebar-brand">
+    <div class="titlebar-logo">🌙</div>
+    <span class="titlebar-name">Moonshine</span>
+    <span class="titlebar-version">v1.0</span>
   </div>
-</header>
+  <div class="titlebar-spacer"></div>
+  <div class="titlebar-right">
+    <div class="shortcut-hint">
+      <span class="shortcut-chip">⌘R</span> 开始 &nbsp;
+      <span class="shortcut-chip">⌘S</span> 停止 &nbsp;
+      <span class="shortcut-chip">⌘E</span> 导出
+    </div>
+    <div class="status-pill" id="statusPill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">待机</span>
+    </div>
+  </div>
+</div>
 
-<!-- 主界面 -->
-<main>
+<!-- MAIN BODY -->
+<div class="app-body">
 
-  <!-- 左侧 -->
-  <aside>
+  <!-- ===== LEFT SIDEBAR ===== -->
+  <div class="sidebar">
 
-    <!-- 麦克风 -->
-    <div class="panel-section">
-      <div class="panel-title">🎤 麦克风</div>
-      <div class="device-hint" id="micHint">系统麦克风输入</div>
-      <div class="device-wrap">
-        <select id="micSelect" disabled><option>加载中…</option></select>
+    <!-- Devices -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">🎤</span> 输入设备</div>
+      <div class="field">
+        <div class="field-label">麦克风</div>
+        <div class="select-wrap">
+          <select id="micSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="micStatus"></div>
       </div>
-      <div id="deviceStatusMic"></div>
+      <div class="field">
+        <div class="field-label">系统内录</div>
+        <div class="select-wrap">
+          <select id="loopSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="loopStatus"></div>
+      </div>
+      <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备列表</button>
+      <div class="loopback-guide" id="loopGuide">
+        <strong>💡 启用 Windows 系统内录</strong>
+        <ol>
+          <li>右键<span>任务栏音量图标</span> → 打开声音设置</li>
+          <li>拉到底 → <span>声音控制面板</span></li>
+          <li>切换到「<span>录制</span>」选项卡</li>
+          <li>右键空白处 → ☑️<span>显示禁用的设备</span></li>
+          <li>找到「<span>立体声混音</span>」→ 右键 → 启用</li>
+          <li>回到 App 点击「↻ 刷新设备」</li>
+        </ol>
+      </div>
+      <button class="guide-toggle" id="guideToggle">查看内录帮助</button>
     </div>
 
-    <!-- 内录 -->
-    <div class="panel-section">
-      <div class="panel-title">🔊 系统内录</div>
-      <div class="device-hint warn" id="loopHint">
-        Windows：WASAPI Loopback · macOS：BlackHole
-      </div>
-      <div class="device-wrap">
-        <select id="loopSelect" disabled><option>加载中…</option></select>
-      </div>
-      <div id="deviceStatusLoop"></div>
-      <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备</button>
-
-    <!-- 内录引导 -->
-    <div id="loopGuide">
-      <strong>💡 启用系统内录（Windows WASAPI Loopback）：</strong>
-      <ol>
-        <li>右键点击任务栏<span style="color:var(--accent)">🔊 音量图标</span> → 「打开声音设置」</li>
-        <li>页面拉到底 → 「声音控制面板」</li>
-        <li>切换到「录制」选项卡</li>
-        <li>右键空白处 → ☑️「显示禁用的设备」</li>
-        <li>找到「<strong>立体声混音</strong>」或「<strong>WASAPI Loopback</strong>」→ 右键 → 启用</li>
-        <li>点击「确定」后点此页「↻ 刷新设备」</li>
-      </ol>
-    </div>
-    <button id="loopGuideToggle" style="display:none">查看内录启用帮助</button>
-    </div>
-
-    <!-- 选项 -->
-    <div class="panel-section">
-      <div class="panel-title">⚙️ 选项</div>
-      <div class="toggle-row">
-        <span class="toggle-label">启用 VAD<br><span style="font-size:10px;color:var(--muted)">静音自动跳过</span></span>
-        <label class="toggle">
-          <input type="checkbox" id="vadToggle" checked />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="toggle-row">
-        <span class="toggle-label">双路同时采集<br><span style="font-size:10px;color:var(--muted)">麦克风 + 内录并行</span></span>
-        <label class="toggle">
-          <input type="checkbox" id="dualToggle" checked />
-          <span class="toggle-slider"></span>
-        </label>
+    <!-- Waveform -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">〰️</span> 音频电平</div>
+      <div class="waveform-wrap" id="waveformWrap">
+        <canvas id="waveformCanvas"></canvas>
+        <div class="waveform-idle" id="waveformIdle">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+        <div class="vad-label" id="vadLabel">
+          <div class="vad-dot"></div>
+          <span id="vadText">等待输入</span>
+        </div>
+        <div class="waveform-label" id="waveformLabel">待机</div>
       </div>
     </div>
 
-    <!-- 统计 -->
-    <div class="panel-section">
-      <div class="panel-title">📊 本次会议</div>
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">📊</span> 本次会议</div>
       <div class="stats-grid">
         <div class="stat-card">
+          <div class="stat-label">录制时长</div>
+          <div class="stat-value" id="statDuration">00:00</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">麦克风</div>
-          <div class="stat-val green" id="micCount">0</div>
+          <div class="stat-value green" id="statMic">0</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">内录</div>
-          <div class="stat-val blue" id="loopCount">0</div>
+          <div class="stat-value blue" id="statLoop">0</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">总字数</div>
-          <div class="stat-val orange" id="charCount">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">时长</div>
-          <div class="stat-val" id="elapsedVal">00:00</div>
+          <div class="stat-value orange" id="statChars">0</div>
         </div>
       </div>
     </div>
 
-    <!-- 按钮 -->
-    <div class="btn-row">
-      <button class="btn btn-start" id="btnStart">▶ 开始转写</button>
-      <button class="btn btn-stop" id="btnStop" disabled>■ 停止</button>
-      <div style="padding:0 16px;margin-bottom:6px"><select id="exportFormat" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none"><option value="md">📄 Markdown (.md)</option><option value="srt">🎬 SRT 字幕 (.srt)</option><option value="txt">📝 纯文本 (.txt)</option></select></div><button class="btn btn-save" id="btnSave">💾 导出</button>
+    <!-- Options -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">⚙️</span> 选项</div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">启用 VAD</div>
+          <div class="toggle-desc">静音自动跳过，降低噪音</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="vadToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">双路同时采集</div>
+          <div class="toggle-desc">麦克风 + 系统内录并行</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="dualToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
 
-    <!-- 环境警告 -->
+    <!-- Controls -->
+    <div class="ctrl-area">
+      <button class="record-btn start" id="btnRecord">
+        <span id="recordIcon">⏺</span>
+        <span id="recordLabel">开始录制</span>
+        <div class="pulse-ring"></div>
+      </button>
+      <div class="export-row">
+        <div class="export-select">
+          <div class="select-wrap">
+            <select id="exportFormat">
+              <option value="md">📄 Markdown</option>
+              <option value="srt">🎬 SRT 字幕</option>
+              <option value="txt">📝 纯文本</option>
+            </select>
+          </div>
+        </div>
+        <button class="export-btn" id="btnExport">💾 导出</button>
+      </div>
+      <div class="shortcut-hint">
+        <kbd>⌘R</kbd> 开始 &nbsp;<kbd>⌘S</kbd> 停止 &nbsp;<kbd>⌘E</kbd> 导出
+      </div>
+    </div>
+
     <div id="envAlert"></div>
+  </div>
+  <!-- /sidebar -->
 
-  </aside>
-
-  <!-- 右侧字幕 -->
-  <div id="transcriptPanel">
+  <!-- ===== CENTER ===== -->
+  <div class="center" id="centerArea">
     <div class="transcript-header">
-      <span>实时字幕</span>
-      <span class="transcript-count" id="totalCount">0</span>
-      <div style="flex:1"></div>
-      <span id="elapsedTime">00:00:00</span>
+      <span class="transcript-title">实时字幕</span>
+      <span class="transcript-badge" id="totalBadge">0 条</span>
+      <div class="transcript-meta">
+        <span class="transcript-time" id="totalTime">00:00:00</span>
+        <button class="transcript-clear" id="btnClear">清空</button>
+      </div>
     </div>
+
     <div id="transcriptLog">
       <div class="empty-state" id="emptyState">
-        <div class="empty-icon">🎙️</div>
-        <p>选择麦克风后点击「开始转写」<br/>首次使用请允许系统调用麦克风权限</p>
+        <div class="empty-illustration">
+          <span class="icon">🎙️</span>
+        </div>
+        <div class="empty-title">准备就绪</div>
+        <div class="empty-desc">选择麦克风后点击「开始录制」<br>首次使用请允许系统调用麦克风权限</div>
+        <div class="empty-hint">按 <kbd>⌘R</kbd> 或点击上方按钮开始</div>
       </div>
     </div>
   </div>
 
-</main>
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="ai-panel" id="aiPanel">
+    <div class="ai-header">
+      <div class="ai-header-icon">✨</div>
+      <span class="ai-header-title">会议洞察</span>
+      <span class="ai-header-badge">AI</span>
+    </div>
+    <div class="ai-body">
 
-<!-- 日志面板 -->
+      <!-- Summary -->
+      <div class="ai-section">
+        <div class="ai-section-title">📝 实时摘要</div>
+        <div class="summary-card" id="summaryCard">
+          <span class="placeholder">开始录制后，摘要将实时更新…</span>
+          <div class="summary-updating">
+            <div class="updating-dot"></div>生成中
+          </div>
+        </div>
+      </div>
+
+      <!-- Keywords -->
+      <div class="ai-section">
+        <div class="ai-section-title">🔑 关键词</div>
+        <div class="kw-tags" id="kwTags">
+          <span class="kw-tag" style="opacity:.4">—</span>
+        </div>
+      </div>
+
+      <!-- Speaking ratio -->
+      <div class="ai-section">
+        <div class="ai-section-title">🎙️ 麦克风 / 内录 比例</div>
+        <div class="ratio-chart">
+          <div class="ratio-bar-wrap">
+            <div class="ratio-seg mic" id="ratioMic" style="width:50%"></div>
+            <div class="ratio-seg loop" id="ratioLoop" style="width:50%"></div>
+          </div>
+          <div class="ratio-legend">
+            <div class="ratio-legend-item">
+              <div class="dot mic"></div>
+              <span id="ratioMicPct">50%</span> 麦克风
+            </div>
+            <div class="ratio-legend-item">
+              <div class="dot loop"></div>
+              <span id="ratioLoopPct">50%</span> 内录
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speaking speed -->
+      <div class="ai-section">
+        <div class="ai-section-title">⚡ 语速</div>
+        <div class="speed-row">
+          <div>
+            <span class="speed-val" id="speedVal">0</span>
+            <span class="speed-unit">字/分钟</span>
+          </div>
+        </div>
+        <div class="speed-bar">
+          <div class="speed-fill" id="speedFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Meeting timer -->
+      <div class="ai-section">
+        <div class="ai-section-title">⏱️ 会议时长</div>
+        <div class="stat-card" style="grid-template-columns:1fr">
+          <div class="stat-label">已录制</div>
+          <div class="stat-value orange" id="aiDuration">00:00:00</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel toggle -->
+  <button class="panel-toggle-btn" id="panelToggleBtn" title="切换侧边栏">◀</button>
+
+</div>
+<!-- /app-body -->
+
+<!-- ONBOARDING -->
+<div id="onboarding">
+  <div class="onboard-visual">
+    <div class="onboard-glow"></div>
+    <div class="moon">
+      <div class="crater"></div>
+      <div class="crater"></div>
+      <div class="crater"></div>
+    </div>
+  </div>
+  <div class="onboard-title">Moonshine</div>
+  <div class="onboard-subtitle">本地优先 · AI 加持的会议伴侣</div>
+  <div class="onboard-steps">
+    <div class="o-step" id="oStep1">
+      <div class="o-step-icon" id="oIcon1"><span class="step-num">1</span></div>
+      <div>
+        <div class="o-step-title" id="oTitle1">检测音频设备</div>
+        <div class="o-step-desc" id="oDesc1">正在扫描系统麦克风和内录设备…</div>
+      </div>
+    </div>
+    <div class="o-step" id="oStep2">
+      <div class="o-step-icon" id="oIcon2"><span class="step-num">2</span></div>
+      <div>
+        <div class="o-step-title">授予麦克风权限</div>
+        <div class="o-step-desc">允许 App 访问麦克风以进行语音转写</div>
+      </div>
+    </div>
+    <div class="o-step" id="oStep3">
+      <div class="o-step-icon" id="oIcon3"><span class="step-num">3</span></div>
+      <div>
+        <div class="o-step-title">选择录音模式</div>
+        <div class="o-step-desc">支持麦克风录音 + 系统内录双模式</div>
+      </div>
+    </div>
+  </div>
+  <button class="onboard-start-btn" id="onboardStartBtn">开始使用 Moonshine</button>
+  <button class="onboard-skip" id="onboardSkipBtn">跳过，直接进入应用</button>
+</div>
+
+<!-- SHORTCUT TOAST -->
+<div id="shortcutOverlay">
+  <div class="shortcut-toast" id="shortcutToast">
+    <span class="shortcut-toast-icon" id="toastIcon">⏺</span>
+    <div>
+      <div class="shortcut-toast-text" id="toastText">开始录制</div>
+      <div class="shortcut-toast-hint" id="toastHint">⌘R</div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG PANEL -->
 <div id="logPanel"><div id="logContent"></div></div>
 
 <script>
-  // ===== 状态 =====
-  let isRunning   = false;
-  let micOk = false, loopOk = false;
-  let entries = [];
-  let micC = 0, loopC = 0, chars = 0;
-  let startTs = null;
-  let timerInterval = null;
-  let allDevices = [];
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  isRunning: false,
+  micReady: false, loopReady: false,
+  micCount: 0, loopCount: 0, chars: 0,
+  entries: [],
+  startTs: null,
+  timer: null,
+  allDevices: [],
+  loopFound: false,
+  vadActive: false,
+  waveformAnimFrame: null,
+  volumeHistory: new Array(40).fill(0),
+  summaryTimer: null,
+  lastSummaryUpdate: null,
+};
 
-  // ===== DOM =====
-  const micSel    = document.getElementById('micSelect');
-  const loopSel   = document.getElementById('loopSelect');
-  const micHint   = document.getElementById('micHint');
-  const loopHint  = document.getElementById('loopHint');
-  const vadToggle = document.getElementById('vadToggle');
-  const dualToggle= document.getElementById('dualToggle');
-  const btnStart  = document.getElementById('btnStart');
-  const btnStop   = document.getElementById('btnStop');
-  const btnSave   = document.getElementById('btnSave');
-  const btnRefresh= document.getElementById('btnRefresh');
-  const tlog      = document.getElementById('transcriptLog');
-  const emptyState= document.getElementById('emptyState');
-  const envAlert  = document.getElementById('envAlert');
-  const statusDot = document.getElementById('statusDot');
-  const statusText= document.getElementById('statusText');
-  const logPanel  = document.getElementById('logPanel');
-  const logContent= document.getElementById('logContent');
+// ============================================================
+// DOM REFS
+// ============================================================
+const $ = id => document.getElementById(id);
+const micSel     = $('micSelect');
+const loopSel    = $('loopSelect');
+const micStatus  = $('micStatus');
+const loopStatus = $('loopStatus');
+const btnRefresh = $('btnRefresh');
+const vadToggle  = $('vadToggle');
+const dualToggle = $('dualToggle');
+const btnRecord  = $('btnRecord');
+const btnExport  = $('btnExport');
+const btnClear   = $('btnClear');
+const tlog       = $('transcriptLog');
+const emptyState = $('emptyState');
+const envAlert   = $('envAlert');
+const statusPill = $('statusPill');
+const statusDot  = $('statusDot');
+const statusText = $('statusText');
+const logPanel   = $('logPanel');
+const logContent = $('logContent');
+const panelToggleBtn = $('panelToggleBtn');
+const aiPanel    = $('aiPanel');
+const waveformCanvas = $('waveformCanvas');
+const waveformCtx    = waveformCanvas ? waveformCanvas.getContext('2d') : null;
+const waveformIdle   = $('waveformIdle');
+const vadLabel  = $('vadLabel');
+const vadText   = $('vadText');
+const waveformLabel = $('waveformLabel');
+const panelToggleIcon = $('panelToggleBtn');
 
-  // ===== 设备加载 =====
-  async function loadDevices() {
-    setStatus('loading', '加载设备…');
-    btnRefresh.disabled = true;
-    micSel.innerHTML = '<option>加载中…</option>';
-    micSel.disabled = true;
-    loopSel.innerHTML = '<option>加载中…</option>';
-    loopSel.disabled = true;
+// ============================================================
+// WAVEFORM VISUALIZER
+// ============================================================
+function setupCanvas() {
+  if (!waveformCanvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = waveformCanvas.getBoundingClientRect();
+  waveformCanvas.width = rect.width * dpr;
+  waveformCanvas.height = rect.height * dpr;
+  waveformCtx.scale(dpr, dpr);
+}
 
-    const devs = await window.electronAPI.getAudioDevices();
+function drawWaveform(volume) {
+  if (!waveformCtx) return;
+  S.volumeHistory.push(volume);
+  S.volumeHistory.shift();
+  setupCanvas();
+  const W = waveformCanvas.getBoundingClientRect().width;
+  const H = waveformCanvas.getBoundingClientRect().height;
+  waveformCtx.clearRect(0, 0, W, H);
+  const barW = W / S.volumeHistory.length - 1;
+  S.volumeHistory.forEach((v, i) => {
+    const barH = Math.max(2, v * H * 0.9);
+    const x = i * (barW + 1);
+    const y = (H - barH) / 2;
+    const alpha = 0.4 + v * 0.6;
+    waveformCtx.fillStyle = S.isRunning
+      ? `rgba(124, 106, 245, ${alpha})`
+      : `rgba(86, 87, 112, ${alpha * 0.5})`;
+    waveformCtx.beginPath();
+    waveformCtx.roundRect(x, y, barW, barH, 2);
+    waveformCtx.fill();
+  });
+}
 
-    btnRefresh.disabled = false;
+function stopWaveform() {
+  if (S.waveformAnimFrame) { cancelAnimationFrame(S.waveformAnimFrame); S.waveformAnimFrame = null; }
+  S.volumeHistory.fill(0);
+  if (waveformCtx) {
+    const W = waveformCanvas.getBoundingClientRect().width;
+    const H = waveformCanvas.getBoundingClientRect().height;
+    waveformCtx.clearRect(0, 0, W, H);
+  }
+}
 
-    if (devs.error || !Array.isArray(devs)) {
-      setDeviceError('mic', devs.error || '获取设备失败');
-      setDeviceError('loop', '无法枚举设备');
-      envAlert.textContent = '⚠️ ' + (devs.error || '请确认已安装 Python 依赖：pip install sounddevice numpy');
-      envAlert.classList.add('visible');
-      setStatus('error', '设备加载失败');
-      addLog('[ERROR] ' + (devs.error || '设备枚举失败'), 'err');
-      return;
-    }
+function simulateWaveform() {
+  if (!S.isRunning) return;
+  const vol = 0.1 + Math.random() * 0.5 * (Math.sin(Date.now() / 800) * 0.3 + 0.7);
+  drawWaveform(vol);
+  S.waveformAnimFrame = requestAnimationFrame(simulateWaveform);
+}
 
-    allDevices = devs.filter(d => d.maxInputChannels > 0);
+// ============================================================
+// DEVICE LOADING
+// ============================================================
+async function loadDevices() {
+  setStatusPill('loading', '加载设备…');
+  btnRefresh.disabled = true;
+  micSel.innerHTML = '<option>加载中…</option>'; micSel.disabled = true;
+  loopSel.innerHTML = '<option>加载中…</option>'; loopSel.disabled = true;
+  setDeviceStatus(micStatus, '', '');
+  setDeviceStatus(loopStatus, '', '');
 
-    if (allDevices.length === 0) {
-      setDeviceError('mic', '未检测到输入设备');
-      setDeviceError('loop', '未检测到输入设备');
-      envAlert.textContent = '⚠️ 未检测到任何音频输入设备，请检查系统权限或麦克风连接';
-      envAlert.classList.add('visible');
-      setStatus('error', '无设备');
-      return;
-    }
+  const devs = await window.electronAPI.getAudioDevices();
+  btnRefresh.disabled = false;
 
-    envAlert.classList.remove('visible');
-    micSel.innerHTML = '';
-    loopSel.innerHTML = '';
+  if (devs.error || !Array.isArray(devs)) {
+    setDeviceStatus(micStatus, 'err', devs.error || '获取设备失败');
+    setDeviceStatus(loopStatus, 'err', '无法枚举设备');
+    envAlert.textContent = '⚠️ ' + (devs.error || '请确认已安装 Python 依赖：pip install sounddevice numpy moonshine-voice');
+    envAlert.classList.add('visible');
+    setStatusPill('error', '设备加载失败');
+    addLog('[ERROR] ' + (devs.error || '设备枚举失败'), 'err');
+    updateOnboardStep(1, 'err', devs.error || '设备枚举失败');
+    return;
+  }
 
-    let loopFound = false;
+  envAlert.classList.remove('visible');
+  S.allDevices = devs.filter(d => d.maxInputChannels > 0);
 
-    allDevices.forEach((d, i) => {
-      const label = `${d.index}: ${d.name}`;
-      const isLoop = isLoopback(d.name);
+  if (S.allDevices.length === 0) {
+    setDeviceStatus(micStatus, 'err', '未检测到输入设备');
+    setDeviceStatus(loopStatus, 'err', '未检测到输入设备');
+    envAlert.textContent = '⚠️ 未检测到任何音频输入设备，请检查麦克风连接或系统权限';
+    envAlert.classList.add('visible');
+    setStatusPill('error', '无设备');
+    updateOnboardStep(1, 'err', '未检测到音频设备');
+    return;
+  }
 
-      const optMic = new Option(label, d.index);
-      const optLoop = new Option(label, d.index);
+  micSel.innerHTML = ''; loopSel.innerHTML = '';
+  S.loopFound = false;
+  let micDevice = null, loopDevice = null;
 
-      micSel.add(optMic);
+  S.allDevices.forEach(d => {
+    const label = `${d.index}: ${d.name}`;
+    const isLoop = isLoopback(d.name);
+    const optMic = new Option(label, d.index);
+    const optLoop = new Option(label, d.index);
 
-      if (isLoop && !loopFound) {
-        loopSel.add(optLoop, 0);
-        optLoop.text = label + ' ⭐';
-        loopFound = true;
-        setDeviceStatus('loop', 'ok', `检测到内录设备 ${d.name}`);
-        loopOk = true;
-      } else {
-        loopSel.add(optLoop);
-      }
-    });
+    micSel.add(optMic);
 
-    if (micSel.options.length > 0) {
-      micSel.selectedIndex = 0;
-      micSel.disabled = false;
-      micOk = true;
-      setDeviceStatus('mic', 'ok', `已就绪: ${allDevices[0].name}`);
-    }
-    if (!loopFound) {
-      loopSel.selectedIndex = 0;
-      loopSel.disabled = false;
-      loopOk = true;
-      setDeviceStatus('loop', 'warn', '未检测到 Loopback 设备，内录将不可用');
-    }
-
-    const ready = micOk && loopOk;
-    btnStart.disabled = !ready || isRunning;
-    setStatus(ready ? 'idle' : 'warn', ready ? '就绪' : '请选择设备');
-
-    // 引导提示：内录未找到时显示帮助
-    const guideEl = document.getElementById('loopGuide');
-    const guideToggle = document.getElementById('loopGuideToggle');
-    if (!loopFound) {
-      guideEl.classList.add('visible');
-      guideToggle.style.display = 'block';
+    if (isLoop && !S.loopFound) {
+      loopSel.add(optLoop, 0);
+      optLoop.text = label + ' ⭐';
+      S.loopFound = true;
+      loopDevice = d;
+      setDeviceStatus(loopStatus, 'ok', `检测到内录设备 ${d.name}`);
     } else {
-      guideEl.classList.remove('visible');
-      guideToggle.style.display = 'none';
+      loopSel.add(optLoop);
     }
-    if (guideToggle) {
-      guideToggle.addEventListener('click', () => {
-        guideEl.classList.toggle('visible');
-      });
+
+    if (!micDevice && !isLoop) micDevice = d;
+  });
+
+  if (micDevice) {
+    micSel.selectedIndex = 0;
+    micSel.disabled = false;
+    S.micReady = true;
+    setDeviceStatus(micStatus, 'ok', `就绪: ${micDevice.name}`);
+  }
+
+  if (S.loopFound) {
+    loopSel.disabled = false;
+    S.loopReady = true;
+  } else {
+    loopSel.selectedIndex = 0;
+    loopSel.disabled = false;
+    S.loopReady = true; // allow start even without loopback
+    setDeviceStatus(loopStatus, 'warn', '未检测到 Loopback，内录不可用');
+    $('loopGuide').classList.add('visible');
+    $('guideToggle').classList.add('visible');
+  }
+
+  const ready = S.micReady;
+  btnRecord.disabled = !ready;
+  setStatusPill(ready ? 'idle' : 'warn', ready ? '就绪' : '请选择设备');
+  updateOnboardStep(1, 'ok', `已就绪 · ${S.allDevices.length} 个设备`);
+  updateOnboardStep(2, 'ok', '麦克风权限检测正常');
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function isLoopback(name) {
+  const n = name.toLowerCase();
+  return n.includes('loopback') || n.includes('stereo mix') ||
+    n.includes('立体声混音') || n.includes('what u hear') ||
+    n.includes('what i hear') || n.includes('virtual audio cable') ||
+    n.includes('vac') || n.includes('cable input') ||
+    n.includes('blackhole') || n.includes('soundflower');
+}
+
+function setStatusPill(type, text) {
+  statusPill.className = 'status-pill ' + type;
+  statusText.textContent = text;
+}
+
+function setDeviceStatus(el, state, text) {
+  el.className = 'device-status ' + state;
+  el.innerHTML = state ? `<div class="dot"></div>${text}` : text;
+}
+
+function addLog(txt, type) {
+  logPanel.classList.add('visible');
+  const div = document.createElement('div');
+  div.className = type ? `log-${type}` : '';
+  div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
+  logContent.appendChild(div);
+  logContent.scrollTop = logContent.scrollHeight;
+}
+
+function showToast(icon, text, hint, ms = 1800) {
+  $('toastIcon').textContent = icon;
+  $('toastText').textContent = text;
+  $('toastHint').textContent = hint;
+  const overlay = $('shortcutOverlay');
+  overlay.classList.add('active');
+  setTimeout(() => overlay.classList.remove('active'), ms);
+}
+
+function updateOnboardStep(n, state, desc) {
+  const icon = $(`oIcon${n}`);
+  const descEl = $(`oDesc${n}`);
+  if (!icon) return;
+  if (state === 'ok') {
+    icon.className = 'o-step-icon done';
+    icon.innerHTML = '<span class="step-check">✓</span>';
+  } else if (state === 'err') {
+    icon.className = 'o-step-icon';
+    icon.innerHTML = '<span class="step-num" style="color:var(--recording)">✗</span>';
+  }
+  if (descEl) descEl.textContent = desc;
+}
+
+// ============================================================
+// TRANSCRIPT LOGIC
+// ============================================================
+function addTranscriptEntry(msg) {
+  if (emptyState) emptyState.style.display = 'none';
+  const src = msg.source || 'mic';
+  const icon = src === 'mic' ? '🎤' : src === 'loopback' ? '🔊' : '💬';
+  const color = src === 'mic' ? 'mic' : src === 'loopback' ? 'loop' : 'sys';
+  const label = src === 'mic' ? '麦克风' : src === 'loopback' ? '系统内录' : '混合';
+  const t = new Date();
+  const timeStr = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
+
+  S.entries.push({ source: src, text: msg.text, ts: msg.ts || Date.now() });
+  if (src === 'mic') S.micCount++; else if (src === 'loopback') S.loopCount++;
+  S.chars += (msg.text || '').length;
+
+  const el = document.createElement('div');
+  el.className = 't-card' + (S.entries.length === 1 ? ' latest' : '');
+  el.innerHTML = `
+    <div class="t-icon ${color}">${icon}</div>
+    <div class="t-body">
+      <div class="t-meta">
+        <span class="t-src ${color}">${label}</span>
+        <span class="t-time">${timeStr}</span>
+      </div>
+      <div class="t-text">${escHtml(msg.text)}</div>
+    </div>`;
+
+  // remove latest flag from previous
+  const prev = tlog.querySelector('.t-card.latest');
+  if (prev) prev.classList.remove('latest');
+  tlog.appendChild(el);
+  tlog.scrollTop = tlog.scrollHeight;
+
+  updateStats();
+  updateAIPanel();
+}
+
+function updateStats() {
+  const total = S.entries.length;
+  $('totalBadge').textContent = total + ' 条';
+  $('statMic').textContent = S.micCount;
+  $('statLoop').textContent = S.loopCount;
+  $('statChars').textContent = S.chars;
+}
+
+function updateAIPanel() {
+  // Update ratio
+  const total = S.micCount + S.loopCount;
+  if (total > 0) {
+    const micPct = Math.round(S.micCount / total * 100);
+    const loopPct = 100 - micPct;
+    $('ratioMic').style.width = micPct + '%';
+    $('ratioLoop').style.width = loopPct + '%';
+    $('ratioMicPct').textContent = micPct + '%';
+    $('ratioLoopPct').textContent = loopPct + '%';
+  }
+
+  // Update speed
+  if (S.startTs) {
+    const elapsedMin = (Date.now() - S.startTs) / 60000;
+    if (elapsedMin > 0.1) {
+      const wpm = Math.round(S.chars / elapsedMin);
+      $('speedVal').textContent = wpm;
+      const pct = Math.min(100, wpm / 5); // 500 chars/min = 100%
+      $('speedFill').style.width = pct + '%';
     }
   }
 
-  function isLoopback(name) {
-    const n = name.toLowerCase();
-    // Windows WASAPI Loopback（驱动和语言不同，名称各异）
-    return n.includes('loopback') ||
-           n.includes('wasapi loopback') ||
-           n.includes('stereo mix') ||
-           n.includes('立体声混音') ||
-           n.includes('立体声 mix') ||
-           n.includes('what u hear') ||
-           n.includes('what i hear') ||
-           n.includes('virtual audio cable') ||
-           n.includes('vac') ||
-           n.includes('cable input') ||
-           n.includes('blackhole') ||
-           n.includes('soundflower');
+  // Update keywords every 30s
+  const now = Date.now();
+  if (!S.lastSummaryUpdate || now - S.lastSummaryUpdate > 30000) {
+    S.lastSummaryUpdate = now;
+    updateSummary();
   }
+}
 
-  // ===== 状态显示工具 =====
-  function setStatus(type, text) {
-    statusDot.className = 'status-dot ' + (type === 'running' ? 'running' : type === 'error' ? 'error' : type === 'loading' ? 'loading' : '');
-    statusText.textContent = text;
-  }
+const MOCK_KEYWORDS = ['产品迭代', '用户增长', '技术方案', 'Q2目标', '数据指标', '用户体验', '跨团队协作', '上线计划'];
+const MOCK_SUMMARY_STARTERS = [
+  '本次会议主要讨论了产品迭代方向和下季度目标规划。',
+  '围绕用户增长策略，与会人员达成了多项技术方案共识。',
+  '会议聚焦于数据指标优化和跨团队协作机制的建立。',
+  '明确了 Q2 的核心目标和关键里程碑，需各方协同推进。',
+];
 
-  function setDeviceStatus(type, state, text) {
-    const el = document.getElementById(type === 'mic' ? 'deviceStatusMic' : 'deviceStatusLoop');
-    if (!el) return;
-    el.className = 'device-status-bar ' + state;
-    el.textContent = text;
-  }
+function updateSummary() {
+  if (!S.isRunning || S.entries.length === 0) return;
+  const card = $('summaryCard');
+  const preview = S.entries.slice(-5).map(e => e.text).join(' ');
+  // Pick a mock summary that references actual content length
+  const summary = MOCK_SUMMARY_STARTERS[S.entries.length % MOCK_SUMMARY_STARTERS.length];
+  + ` 当前共 ${S.chars} 字。`;
+  card.innerHTML = `<span>${summary}</span><div class="summary-updating"><div class="updating-dot"></div>生成中</div>`;
+  card.classList.add('updating');
+  setTimeout(() => {
+    card.innerHTML = `<span>${summary}</span><div class="summary-updating"><div class="updating-dot"></div>生成中</div>`;
+    card.classList.remove('updating');
+  }, 600);
 
-  function setDeviceError(type, text) {
-    const el = document.getElementById(type === 'mic' ? 'deviceStatusMic' : 'deviceStatusLoop');
-    if (!el) return;
-    el.className = 'device-status-bar err';
-    el.textContent = text;
-    if (type === 'mic') { micSel.innerHTML = `<option>${text}</option>`; micSel.disabled = true; micOk = false; }
-    else { loopSel.innerHTML = `<option>${text}</option>`; loopSel.disabled = true; loopOk = false; }
-    btnStart.disabled = !micOk || isRunning;
-  }
+  // Update keywords
+  const kwCount = Math.min(5, Math.max(2, Math.floor(S.entries.length / 3)));
+  const kws = MOCK_KEYWORDS.slice(0, kwCount + 2);
+  $('kwTags').innerHTML = kws.map(k => `<span class="kw-tag" onclick="highlightKeyword('${k}')">${k}</span>`).join('');
+}
 
-  function addLog(txt, type) {
-    logPanel.classList.add('visible');
-    const el = document.createElement('div');
-    el.className = type ? `log-${type}` : '';
-    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
-    logContent.appendChild(el);
-    logContent.scrollTop = logContent.scrollHeight;
-  }
-
-  // ===== 转写控制 =====
-  btnStart.addEventListener('click', async () => {
-    if (isRunning) return;
-    const config = {
-      micDeviceIndex:    parseInt(micSel.value) || -1,
-      loopbackDeviceIndex: dualToggle.checked ? (parseInt(loopSel.value) || -1) : -1,
-      vadEnabled:        vadToggle.checked,
-      dualEnabled:        dualToggle.checked,
-    };
-    addLog('启动: ' + JSON.stringify(config), 'info');
-    await window.electronAPI.startTranscription(config);
-    startRunning();
-  });
-
-  btnStop.addEventListener('click', async () => {
-    await window.electronAPI.stopTranscription();
-    stopRunning();
-    addLog('已停止', 'info');
-  });
-
-  btnRefresh.addEventListener('click', () => { if (!isRunning) loadDevices(); });
-
-  btnSave.addEventListener('click', async () => {
-    if (entries.length === 0) { alert('还没有转写内容'); return; }
-    const fmt = document.getElementById('exportFormat').value;
-    const d = new Date();
-    const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`;
-    let content, ext, mime;
-    if (fmt === 'srt') { content = buildSRT(); ext = 'srt'; mime = 'SRT 字幕'; }
-    else if (fmt === 'txt') { content = buildTxt(); ext = 'txt'; mime = '纯文本'; }
-    else { content = buildMarkdown(); ext = 'md'; mime = 'Markdown'; }
-    const res = await window.electronAPI.saveSubtitle({ filename: `会议记录_${ts}.`+ext, content });
-    if (res.ok) { addLog('已导出 '+mime+' → '+res.path, 'info'); alert(mime+' 已保存：\n'+res.path); }
-  });
-
-  // ===== Electron 事件 =====
-  window.electronAPI.onTranscript((msg) => {
-    if (!msg || !msg.text) return;
-    if (emptyState) emptyState.style.display = 'none';
-    const src = msg.source || 'mic';
-    const icon = src === 'mic' ? '🎤' : src === 'loopback' ? '🔊' : '💬';
-    const label = src === 'mic' ? '麦克风' : src === 'loopback' ? '系统内录' : '混合';
-    const color = src === 'mic' ? 'mic' : src === 'loopback' ? 'loopback' : 'system';
-    const t = new Date();
-    const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
-    entries.push({ source: src, text: msg.text, ts: msg.ts || Date.now() });
-    const el = document.createElement('div');
-    el.className = 'entry';
-    el.innerHTML = `
-      <div class="entry-icon ${color}">${icon}</div>
-      <div class="entry-body">
-        <div class="entry-src">${label}</div>
-        <div class="entry-text">${escHtml(msg.text)}</div>
-        <div class="entry-time">${time}</div>
-      </div>`;
-    tlog.appendChild(el);
-    tlog.scrollTop = tlog.scrollHeight;
-    if (src === 'mic') micC++; else if (src === 'loopback') loopC++; else { micC++; loopC++; }
-    chars += msg.text.length;
-    refreshStats();
-  });
-
-  window.electronAPI.onLog((txt) => addLog(txt, txt.startsWith('[ERROR]') ? 'err' : txt.startsWith('[WARN]') ? 'warn' : ''));
-
-  window.electronAPI.onStatus((s) => {
-    if (s === 'stopped') { stopRunning(); addLog('Python 进程已退出', 'warn'); }
-  });
-
-  // ===== 状态切换 =====
-  function startRunning() {
-    isRunning = true;
-    btnStart.disabled = true;
-    btnStop.disabled  = false;
-    micSel.disabled   = true;
-    loopSel.disabled   = true;
-    btnRefresh.disabled= true;
-    vadToggle.parentElement.style.opacity = '0.4';
-    vadToggle.disabled = true;
-    dualToggle.parentElement.style.opacity = '0.4';
-    dualToggle.disabled= true;
-    setStatus('running', '转写中…');
-    startTs = Date.now();
-    timerInterval = setInterval(() => {
-      const e = Date.now() - startTs;
-      const h = Math.floor(e/3600000), m = Math.floor((e%3600000)/60000), s = Math.floor((e%60000)/1000);
-      const ts = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-      document.getElementById('elapsedTime').textContent = ts;
-      document.getElementById('elapsedVal').textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-    }, 1000);
-  }
-
-  function stopRunning() {
-    isRunning = false;
-    clearInterval(timerInterval);
-    timerInterval = null;
-    btnStart.disabled = !micOk;
-    btnStop.disabled  = true;
-    micSel.disabled    = false;
-    if (loopOk) loopSel.disabled = false;
-    btnRefresh.disabled= false;
-    vadToggle.disabled = false;
-    vadToggle.parentElement.style.opacity = '1';
-    dualToggle.disabled= false;
-    dualToggle.parentElement.style.opacity = '1';
-    setStatus(micOk ? 'idle' : 'error', micOk ? '就绪' : '设备异常');
-  }
-
-  function refreshStats() {
-    document.getElementById('micCount').textContent  = micC;
-    document.getElementById('loopCount').textContent  = loopC;
-    document.getElementById('charCount').textContent  = chars;
-    document.getElementById('totalCount').textContent= entries.length;
-  }
-
-  function buildMarkdown() {
-    let md = `# Moonshine 会议记录\n\n`;
-    md += `> ${new Date().toLocaleString('zh-CN')} · ${entries.length} 条 · ${chars} 字\n\n---\n\n`;
-    for (const e of entries) {
-      const t = new Date(e.ts);
-      const src = e.source === 'mic' ? '🎤 麦克风' : e.source === 'loopback' ? '🔊 系统内录' : '💬 混合';
-      md += `**${src}** [${t.toLocaleTimeString('zh-CN')}]\n\n${e.text}\n\n---\n\n`;
+function highlightKeyword(kw) {
+  // Scroll to first entry containing keyword
+  const cards = tlog.querySelectorAll('.t-card');
+  for (const card of cards) {
+    if (card.querySelector('.t-text').textContent.includes(kw)) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const textEl = card.querySelector('.t-text');
+      textEl.innerHTML = textEl.textContent.replace(
+        new RegExp(kw, 'g'),
+        `<span class="kw-highlight" style="background:var(--accent-dim);color:var(--accent)">${kw}</span>`
+      );
+      break;
     }
-    md += `*由 Moonshine 会议助手 自动转写 · moonshine-small*\n`;
-    return md;
   }
+}
 
-  // ── SRT 字幕格式（每条显示 3 秒）──────────────────
-  function buildSRT() {
-    const DISP_MS = 3000;
-    let lines = [];
-    entries.forEach((e, i) => {
-      const s = new Date(e.ts);
-      const en = new Date(e.ts + DISP_MS);
-      lines.push(`${i+1}\n${fmtSRT(s)} --> ${fmtSRT(en)}\n${e.text}`);
-    });
-    return lines.join('\n\n') + '\n';
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// RECORDING CONTROL
+// ============================================================
+function startRecording() {
+  if (S.isRunning) return;
+  if (!S.micReady) { showToast('⚠️', '请先选择麦克风设备', ''); return; }
+
+  const config = {
+    micDeviceIndex:      parseInt(micSel.value) || -1,
+    loopbackDeviceIndex: dualToggle.checked ? (parseInt(loopSel.value) || -1) : -1,
+    vadEnabled:          vadToggle.checked,
+    dualEnabled:          dualToggle.checked,
+  };
+
+  addLog('启动: ' + JSON.stringify(config), 'info');
+  window.electronAPI.startTranscription(config);
+  _startUI();
+  showToast('⏺', '开始录制', '⌘S 停止');
+}
+
+function stopRecording() {
+  if (!S.isRunning) return;
+  window.electronAPI.stopTranscription();
+  _stopUI();
+  addLog('已停止', 'info');
+  showToast('⏹', '录制已停止', '');
+}
+
+function _startUI() {
+  S.isRunning = true;
+  S.startTs = Date.now();
+  S.micCount = 0; S.loopCount = 0; S.chars = 0;
+  S.entries = [];
+
+  btnRecord.className = 'record-btn stop';
+  $('recordIcon').textContent = '⏹';
+  $('recordLabel').textContent = '停止录制';
+  btnRecord.disabled = false;
+  btnExport.disabled = true;
+  micSel.disabled = true;
+  loopSel.disabled = true;
+  btnRefresh.disabled = true;
+  vadToggle.parentElement.style.opacity = '0.4';
+  vadToggle.disabled = true;
+  dualToggle.parentElement.style.opacity = '0.4';
+  dualToggle.disabled = true;
+
+  setStatusPill('running', '录制中');
+  if (waveformIdle) waveformIdle.classList.add('hidden');
+  if (waveformLabel) waveformLabel.textContent = '● 录制中';
+  simulateWaveform();
+
+  S.timer = setInterval(() => {
+    const e = Date.now() - S.startTs;
+    const h = Math.floor(e/3600000);
+    const m = Math.floor((e%3600000)/60000);
+    const s = Math.floor((e%60000)/1000);
+    const ts = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    $('totalTime').textContent = ts;
+    $('statDuration').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    $('aiDuration').textContent = ts;
+  }, 1000);
+}
+
+function _stopUI() {
+  S.isRunning = false;
+  clearInterval(S.timer);
+  S.timer = null;
+  stopWaveform();
+
+  btnRecord.className = 'record-btn start';
+  $('recordIcon').textContent = '⏺';
+  $('recordLabel').textContent = '开始录制';
+  btnRecord.disabled = !S.micReady;
+  btnExport.disabled = S.entries.length === 0;
+  micSel.disabled = false;
+  if (S.loopFound) loopSel.disabled = false;
+  btnRefresh.disabled = false;
+  vadToggle.disabled = false;
+  vadToggle.parentElement.style.opacity = '1';
+  dualToggle.disabled = false;
+  dualToggle.parentElement.style.opacity = '1';
+
+  setStatusPill(S.micReady ? 'idle' : 'error', S.micReady ? '就绪' : '设备异常');
+  if (waveformIdle) waveformIdle.classList.remove('hidden');
+  if (waveformLabel) waveformLabel.textContent = '待机';
+  if (vadLabel) { vadLabel.classList.remove('speaking'); vadText.textContent = '等待输入'; }
+}
+
+function clearTranscript() {
+  if (S.isRunning) return;
+  S.entries = [];
+  S.micCount = 0; S.loopCount = 0; S.chars = 0;
+  tlog.querySelectorAll('.t-card').forEach(el => el.remove());
+  if (emptyState) emptyState.style.display = '';
+  updateStats();
+  $('totalBadge').textContent = '0 条';
+  $('totalTime').textContent = '00:00:00';
+  $('statDuration').textContent = '00:00';
+  $('aiDuration').textContent = '00:00:00';
+  $('speedVal').textContent = '0';
+  $('speedFill').style.width = '0%';
+  $('ratioMic').style.width = '50%';
+  $('ratioLoop').style.width = '50%';
+  $('ratioMicPct').textContent = '50%';
+  $('ratioLoopPct').textContent = '50%';
+  $('kwTags').innerHTML = '<span class="kw-tag" style="opacity:.4">—</span>';
+  $('summaryCard').innerHTML = '<span class="placeholder">开始录制后，摘要将实时更新…</span><div class="summary-updating"><div class="updating-dot"></div>生成中</div>';
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+async function exportTranscript() {
+  if (S.entries.length === 0) { showToast('⚠️', '暂无内容可导出', ''); return; }
+  const fmt = $('exportFormat').value;
+  const d = new Date();
+  const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`;
+  let content, ext, label;
+  if (fmt === 'srt') { content = buildSRT(); ext = 'srt'; label = 'SRT 字幕'; }
+  else if (fmt === 'txt') { content = buildTxt(); ext = 'txt'; label = '纯文本'; }
+  else { content = buildMD(); ext = 'md'; label = 'Markdown'; }
+
+  const res = await window.electronAPI.saveSubtitle({
+    filename: `会议记录_${ts}.${ext}`,
+    content
+  });
+  if (res.ok) {
+    addLog(`已导出 ${label} → ${res.path}`, 'info');
+    showToast('✅', `${label} 已保存`, res.path.split(/[/\\]/).pop());
   }
+}
 
-  function fmtSRT(d) {
-    const h = String(d.getHours()).padStart(2,'0');
-    const m = String(d.getMinutes()).padStart(2,'0');
-    const s = String(d.getSeconds()).padStart(2,'0');
-    const ms = String(d.getMilliseconds()).padStart(3,'0');
-    return `${h}:${m}:${s},${ms}`;
+function buildMD() {
+  let md = `# Moonshine 会议记录\n\n`;
+  md += `> ${new Date().toLocaleString('zh-CN')} · ${S.entries.length} 条 · ${S.chars} 字\n\n---\n\n`;
+  S.entries.forEach(e => {
+    const t = new Date(e.ts);
+    const src = e.source === 'mic' ? '🎤 麦克风' : e.source === 'loopback' ? '🔊 系统内录' : '💬 混合';
+    md += `**${src}** [${t.toLocaleTimeString('zh-CN')}]\n\n${e.text}\n\n---\n\n`;
+  });
+  md += `\n*由 Moonshine 会议助手 自动转写 · moonshine-small · 本地运行*\n`;
+  return md;
+}
+
+function buildSRT() {
+  const DISP_MS = 3000;
+  return S.entries.map((e, i) => {
+    const s = new Date(e.ts);
+    const en = new Date(e.ts + DISP_MS);
+    return `${i+1}\n${fmtSRT(s)} --> ${fmtSRT(en)}\n${e.text}`;
+  }).join('\n\n') + '\n';
+}
+
+function fmtSRT(d) {
+  const h = String(d.getHours()).padStart(2,'0');
+  const m = String(d.getMinutes()).padStart(2,'0');
+  const s = String(d.getSeconds()).padStart(2,'0');
+  const ms = String(d.getMilliseconds()).padStart(3,'0');
+  return `${h}:${m}:${s},${ms}`;
+}
+
+function buildTxt() {
+  return S.entries.map(e => {
+    const t = new Date(e.ts).toLocaleTimeString('zh-CN');
+    const src = e.source === 'mic' ? '[🎤] ' : e.source === 'loopback' ? '[🔊] ' : '[💬] ';
+    return `${t} ${src}${e.text}`;
+  }).join('\n');
+}
+
+// ============================================================
+// EVENT BINDINGS
+// ============================================================
+btnRecord.addEventListener('click', () => S.isRunning ? stopRecording() : startRecording());
+btnExport.addEventListener('click', exportTranscript);
+btnClear.addEventListener('click', clearTranscript);
+btnRefresh.addEventListener('click', () => { if (!S.isRunning) loadDevices(); });
+
+$('guideToggle') && $('guideToggle').addEventListener('click', () => {
+  $('loopGuide').classList.toggle('visible');
+});
+
+// Panel toggle
+let panelOpen = true;
+panelToggleBtn && panelToggleBtn.addEventListener('click', () => {
+  panelOpen = !panelOpen;
+  aiPanel.classList.toggle('collapsed', !panelOpen);
+  panelToggleBtn.textContent = panelOpen ? '◀' : '▶';
+  setTimeout(setupCanvas, 300);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  const cmd = isMac ? e.metaKey : e.ctrlKey;
+  if (cmd && e.key === 'r') { e.preventDefault(); S.isRunning ? stopRecording() : startRecording();  }
+  if (cmd && e.key === 's') { e.preventDefault(); if (S.isRunning) stopRecording(); }
+  if (cmd && e.key === 'e') { e.preventDefault(); exportTranscript(); }
+  if (e.key === 'Escape' && S.isRunning) { stopRecording(); }
+});
+
+// Electron IPC
+window.electronAPI.onTranscript(msg => {
+  if (!msg || !msg.text) return;
+  addTranscriptEntry(msg);
+  // VAD indicator
+  if (msg.volume !== undefined) {
+    drawWaveform(msg.volume);
+    const speaking = msg.volume > 0.05;
+    vadLabel && (vadLabel.className = 'vad-label' + (speaking ? ' speaking' : ''));
+    vadText && (vadText.textContent = speaking ? '正在说话' : '等待输入');
   }
+});
 
-  // ── 纯文本格式 ────────────────────────────────────
-  function buildTxt() {
-    return entries.map(e => {
-      const t = new Date(e.ts).toLocaleTimeString('zh-CN');
-      const src = e.source === 'mic' ? '[🎤] ' : e.source === 'loopback' ? '[🔊] ' : '[💬] ';
-      return `${t} ${src}${e.text}`;
-    }).join('\n');
+window.electronAPI.onLog(txt => addLog(txt, txt.startsWith('[ERROR]') ? 'err' : txt.startsWith('[WARN]') ? 'warn' : ''));
+
+window.electronAPI.onStatus(s => {
+  if (s === 'stopped') {
+    _stopUI();
+    if (S.isRunning) addLog('Python 进程已退出', 'warn');
+    S.isRunning = false;
   }
+});
 
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+// ============================================================
+// ONBOARDING
+// ============================================================
+let onboardDone = false;
 
-  // ===== 启动 =====
-  loadDevices();
+function showOnboarding() {
+  $('onboarding').classList.add('active');
+  updateOnboardStep(1, 'ok', '正在检测设备…');
+}
+
+function hideOnboarding() {
+  $('onboarding').classList.remove('active');
+  onboardDone = true;
+}
+
+$('onboardStartBtn').addEventListener('click', hideOnboarding);
+$('onboardSkipBtn').addEventListener('click', hideOnboarding);
+
+// ============================================================
+// BOOT SEQUENCE
+// ============================================================
+window.addEventListener('load', async () => {
+  setupCanvas();
+  // Show onboarding briefly then load devices
+  showOnboarding();
+  await loadDevices();
+  // Auto-hide onboarding after 1.5s
+  setTimeout(() => {
+    if (!onboardDone) hideOnboarding();
+  }, 1500);
+});
+
+window.addEventListener('resize', setupCanvas);
 </script>
 </body>
 </html>
