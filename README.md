@@ -10,9 +10,22 @@
 
 **开源免费 · 完全本地 · 隐私零风险**
 
-*[Live Demo](https://nrzriq5a49cp.space.minimaxi.com)* · *[下载Releases](https://github.com/xiaopengs/moonshine-meeting-assistant/releases)*
+*[🌐 介绍页](https://nrzriq5a49cp.space.minimaxi.com)* · *[📦 Releases](https://github.com/xiaopengs/moonshine-meeting-assistant/releases)*
 
 </div>
+
+---
+
+## 🎬 产品截图
+
+### 静态介绍页
+![Moonshine Landing Page](https://cdn.hailuoai.com/mcp/cdn_upload/250427437053091844/376455206237112/1775987976_8a462d30.png)
+
+### 应用界面（v2.0 UI）
+![Moonshine App UI](https://cdn.hailuoai.com/mcp/cdn_upload/250427437053091844/376455206237112/1775987975_2db4050c.png)
+
+### 竞品对比
+![Compare](https://cdn.hailuoai.com/mcp/cdn_upload/250427437053091844/376455206237112/1775987977_f6a1a203.png)
 
 ---
 
@@ -25,7 +38,7 @@
 | 导出格式不兼容，复制到笔记工具重排版 | 转写 10 分钟，整理半小时 | 没有一件事被真正解决 |
 | 每次转写都要等云端排队 | 延迟 2-5 秒，体验割裂 | 网络依赖 |
 
-**Moonshine 的前提假设：** 会议记录的本质是「让没参会的人获得同等上下文」——不是为了 AI，是为了可查询、可追溯、可复用。
+**Moonshine 的核心价值：** 会议记录的本质是「让没参会的人获得同等上下文」——不是为了 AI，是为了可查询、可追溯、可复用。
 
 ---
 
@@ -182,7 +195,7 @@ moonshine-meeting-assistant/
 │   ├── PRD.md               # 产品需求文档
 │   ├── PROGRESS.md          # 里程碑进度
 │   ├── UI-SPEC-v2.md        # v2.0 UI 设计规格书
-│   └── Moonshine_AI_跨平台会议助手方案.md
+│   └── docs/index.html      # 静态介绍页（GitHub Pages）
 ├── package.json
 ├── requirements.txt         # Python 依赖
 └── README.md
@@ -190,15 +203,13 @@ moonshine-meeting-assistant/
 
 ---
 
-## 🌐 部署静态介绍页
+## 🌐 静态介绍页
 
-静态介绍页已部署至 GitHub Pages：
+静态介绍页（GitHub Pages）：
 
 > **https://xiaopengs.github.io/moonshine-meeting-assistant/**
 
-（对应 `docs/` 目录，GitHub Pages 自动从 `main` 分支 `docs/` 文件夹提供服务）
-
-如需自定义域名：在仓库 Settings → Pages → Source 选择 `main` 分支 `docs/` 文件夹，保存即可。
+GitHub Pages 从 `main` 分支 `docs/` 文件夹提供服务。如需自定义域名：在仓库 Settings → Pages → Source 选择 `main` 分支 `docs/` 文件夹，保存即可。
 
 ---
 
