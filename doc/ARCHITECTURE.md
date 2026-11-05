@@ -97,10 +97,25 @@ pub trait TranscriptionEngine: Send {
 | **faster-whisper** | Python 子进程（CTranslate2） | **强**（large-v3 turbo 中文 CER 业界领先） | `faster-whisper` | ✅ |
 | **moonshine** | Python 子进程（moonshine-voice） | 弱（英文见长，WER 7.84% 为 LibriSpeech） | `moonshine-voice` | — |
 | **funasr** | Python 子进程（Paraformer） | **强**（中文流式专用） | `funasr` | — |
+| **volcengine（火山）** | Rust WebSocket 流式（HMAC-SHA256） | **强**（豆包流式 2.0） | 仅 API Key（BYOK） | — |
+| **tencent（腾讯云）** | Rust WebSocket 流式（HMAC-SHA1） | **强**（大模型 2.0，可选说话人分离） | 仅 API Key（BYOK） | — |
+| **alicloud（阿里云）** | Rust WebSocket（POP 签名 + CreateToken） | **强**（会议/客服领域模型） | 仅 API Key（BYOK） | — |
 
 > 引擎选择依据：MacParakeet 公开基准显示 Whisper large-v3 turbo 中文 CER 优于 Parakeet v3；faster-whisper 的 CTranslate2 在 CPU 上 RTF 优秀。故默认 faster-whisper，保留 moonshine 与 FunASR/Paraformer 作为可选后端。
 
-**子进程协议**（stdin/stdout JSON，一行一事件，沿用 v1 已验证思路）：
+### 4.1 云端 ASR（BYOK 模式，参考 coretab）
+
+本地引擎需下载模型并依赖 Python，云端 ASR 只需用户在各云控制台开通语音识别并填入 API Key（**Bring Your Own Key**），零模型、零 Python 依赖。三家均为 **16kHz / 16bit / 单声道 PCM** 的 WebSocket 流式协议，由 Rust 原生 `tokio-tungstenite` 客户端驱动，签名在客户端完成（`crates/core/src/engine/remote/`）：
+
+| 服务商 | 端点 | 鉴权 | 握手 |
+|---|---|---|---|
+| 火山引擎 | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel` | HMAC-SHA256（`ak\nts\nsessionId`） | 连接后发 init JSON |
+| 腾讯云 | `wss://asr.cloud.tencent.com/asr/v2/{appid}` | HMAC-SHA1（字典序参数） | 首条 `code=0` |
+| 阿里云 | `wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1` | POP 签名换 Token（`CreateToken`） | `StartTranscription` → `TranscriptionStarted` |
+
+实现要点：云引擎与本地引擎共用同一 `TranscriptionEngine` trait——后台线程 + tokio runtime 驱动 WebSocket，`feed()` 把 f32 样本转 PCM 16bit 发送并 `drain` 已到达结果，`flush()` 发送结束指令（腾讯 `{"type":"end"}` / 阿里 `StopTranscription`）并等待最终结果。凭证经 `save_asr_settings` 持久化到本机配置目录（`asr-settings.json`），`test_asr_connection` 做握手验证。
+
+**子进程协议**（stdin/stdout JSON，一行一事件，沿用 v1 已验证思路，仅本地引擎使用）：
 
 ```
 → {"cmd":"load","engine":"faster_whisper","model":"large-v3-turbo","lang":"zh"}
@@ -147,11 +162,17 @@ moonshine-meeting-assistant/
 │           │   ├── mod.rs
 │           │   └── capture.rs
 │           ├── vad.rs          # 能量 VAD + 可选 silero
-│           ├── engine/         # 引擎抽象 + 各后端
+│           ├── engine/         # 引擎抽象 + 本地后端 + 云端 ASR
 │           │   ├── mod.rs
 │           │   ├── whisper.rs
 │           │   ├── moonshine.rs
-│           │   └── funasr.rs
+│           │   ├── funasr.rs
+│           │   └── remote/     # 火山引擎 / 腾讯云 / 阿里云（WebSocket + 签名）
+│           │       ├── mod.rs  #   通用流式会话框架
+│           │       ├── sign.rs #   HMAC-SHA256/SHA1 + 阿里 POP 签名
+│           │       ├── volcengine.rs
+│           │       ├── tencent.rs
+│           │       └── alicloud.rs
 │           ├── diarization.rs  # 双路归属 + 可选 pyannote
 │           ├── summary.rs      # OpenAI 兼容摘要
 │           ├── export.rs       # MD/SRT/TXT

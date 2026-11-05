@@ -7,13 +7,15 @@ use std::time::{Duration, Instant};
 
 use moonshine_core::audio::{list_input_devices, AudioCapture};
 use moonshine_core::diarization::{Diarizer, DualChannelDiarizer};
-use moonshine_core::engine::{self, EngineConfig, EngineKind, Segment, Source};
+use moonshine_core::engine::{
+    self, EngineConfig, EngineKind, RemoteCredentials, Segment, Source,
+};
 use moonshine_core::export::{self, ExportFormat};
 use moonshine_core::session::Session;
 use moonshine_core::summary::{self, SummaryConfig};
 use moonshine_core::vad::{rms, EnergyVad, Vad};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 /// 单路音频块大小：160ms @ 16kHz = 2560 样本（端到端 <300ms 目标）。
@@ -61,6 +63,9 @@ fn parse_engine_kind(s: &str) -> Result<EngineKind, String> {
         "faster_whisper" | "whisper" => Ok(EngineKind::FasterWhisper),
         "moonshine" => Ok(EngineKind::Moonshine),
         "funasr" | "paraformer" => Ok(EngineKind::Funasr),
+        "volcengine" | "volc" => Ok(EngineKind::Volcengine),
+        "tencent" => Ok(EngineKind::Tencent),
+        "alicloud" | "aliyun" => Ok(EngineKind::Alicloud),
         other => Err(format!("未知转写引擎: {other}")),
     }
 }
@@ -70,6 +75,25 @@ fn default_engine_script() -> PathBuf {
         return PathBuf::from(p);
     }
     PathBuf::from("python/engine_service.py")
+}
+
+/// ASR 凭证存储路径（app 配置目录）。
+fn asr_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("无法定位配置目录: {e}"))?;
+    Ok(dir.join("asr-settings.json"))
+}
+
+/// 从磁盘加载云端 ASR 凭证（不存在时返回空配置）。
+fn load_remote_credentials(app: &AppHandle) -> Result<RemoteCredentials, String> {
+    let path = asr_settings_path(app)?;
+    if !path.exists() {
+        return Ok(RemoteCredentials::default());
+    }
+    let json = std::fs::read_to_string(&path).map_err(|e| format!("读取凭证失败: {e}"))?;
+    serde_json::from_str(&json).map_err(|e| format!("解析凭证失败: {e}"))
 }
 
 // ========================
@@ -97,6 +121,12 @@ fn start_transcription(
     }
 
     let kind = parse_engine_kind(&config.engine)?;
+    // 云端引擎需从本地配置加载 BYOK 凭证
+    let remote = if kind.is_remote() {
+        Some(load_remote_credentials(&app)?)
+    } else {
+        None
+    };
     let engine_config = EngineConfig {
         kind,
         model: config.model.clone(),
@@ -105,8 +135,9 @@ fn start_transcription(
         } else {
             Some(config.language.clone())
         },
+        python: if cfg!(windows) { "python".into() } else { "python3".into() },
         script: default_engine_script(),
-        ..Default::default()
+        remote,
     };
 
     // 重置会话
@@ -148,6 +179,92 @@ fn start_transcription(
 fn stop_transcription(state: State<'_, AppState>) -> Result<(), String> {
     state.stop_flag.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+// ========================
+// 云端 ASR 设置（BYOK）
+// ========================
+
+/// 云端 ASR 服务商元数据（服务商列表、所需 key 字段、可选模型）。
+#[tauri::command]
+fn get_asr_providers() -> serde_json::Value {
+    serde_json::json!([
+        {
+            "id": "volcengine",
+            "name": "火山引擎",
+            "needsKey": true,
+            "keyFields": [
+                { "key": "accessKeyId", "label": "AccessKey ID", "placeholder": "AKLT...", "type": "text" },
+                { "key": "secretKey", "label": "Secret Key", "placeholder": "火山引擎 SecretKey", "type": "password" },
+                { "key": "appId", "label": "App ID", "placeholder": "数字应用 ID", "type": "text" }
+            ],
+            "models": [
+                { "id": "bigmodel", "name": "豆包流式语音识别 2.0（中文）" },
+                { "id": "bigmodel_en", "name": "豆包流式（英语）" }
+            ],
+            "console": "https://console.volcengine.com/speech/app"
+        },
+        {
+            "id": "tencent",
+            "name": "腾讯云",
+            "needsKey": true,
+            "keyFields": [
+                { "key": "appId", "label": "AppID", "placeholder": "例如 1250000000", "type": "text" },
+                { "key": "secretId", "label": "SecretId", "placeholder": "AKID...", "type": "text" },
+                { "key": "secretKey", "label": "SecretKey", "placeholder": "腾讯云 SecretKey", "type": "password" }
+            ],
+            "models": [
+                { "id": "16k_zh_en_2.0", "name": "大模型 2.0（中英+方言）" },
+                { "id": "16k_zh_en_speaker_2.0", "name": "大模型 2.0（含说话人分离）" }
+            ],
+            "console": "https://console.cloud.tencent.com/asr"
+        },
+        {
+            "id": "alicloud",
+            "name": "阿里云",
+            "needsKey": true,
+            "keyFields": [
+                { "key": "accessKeyId", "label": "AccessKey ID", "placeholder": "LTAI...", "type": "text" },
+                { "key": "accessKeySecret", "label": "AccessKey Secret", "placeholder": "阿里云 AccessKeySecret", "type": "password" },
+                { "key": "appKey", "label": "AppKey", "placeholder": "项目 AppKey", "type": "text" }
+            ],
+            "models": [
+                { "id": "domain-meeting-domain", "name": "会议领域（中文）" },
+                { "id": "domain-audio-domain", "name": "音视频领域（中文）" },
+                { "id": "customer-service-domain", "name": "客服领域（中文）" }
+            ],
+            "console": "https://nls-portal.console.aliyun.com/"
+        }
+    ])
+}
+
+/// 保存云端 ASR 凭证到本地配置（仅存本机，不上传）。
+#[tauri::command]
+fn save_asr_settings(app: AppHandle, settings: RemoteCredentials) -> Result<(), String> {
+    let path = asr_settings_path(&app)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("创建配置目录失败: {e}"))?;
+    }
+    let json =
+        serde_json::to_string_pretty(&settings).map_err(|e| format!("序列化凭证失败: {e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("写入凭证失败: {e}"))
+}
+
+/// 加载本地已保存的云端 ASR 凭证。
+#[tauri::command]
+fn load_asr_settings(app: AppHandle) -> Result<RemoteCredentials, String> {
+    load_remote_credentials(&app)
+}
+
+/// 测试云端 ASR 连接（握手验证凭证有效性）。
+#[tauri::command]
+fn test_asr_connection(app: AppHandle, engine: String, model: String) -> Result<(), String> {
+    let kind = parse_engine_kind(&engine)?;
+    if !kind.is_remote() {
+        return Err("该引擎为本地引擎，无需测试云端连接".to_string());
+    }
+    let creds = load_remote_credentials(&app)?;
+    engine::remote::test_connection(kind, &creds, &model)
 }
 
 #[tauri::command]
@@ -389,6 +506,10 @@ pub fn run() {
             save_transcript,
             summarize,
             export_session,
+            get_asr_providers,
+            save_asr_settings,
+            load_asr_settings,
+            test_asr_connection,
         ])
         .run(tauri::generate_context!())
         .expect("Moonshine 会议助手启动失败");

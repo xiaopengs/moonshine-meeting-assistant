@@ -36,9 +36,12 @@
       <div class="field">
         <div class="select-wrap">
           <select id="engineSelect">
-            <option value="faster_whisper">faster-whisper（中文优先）</option>
-            <option value="moonshine">moonshine（英文流式）</option>
-            <option value="funasr">FunASR / Paraformer（中文流式）</option>
+            <option value="faster_whisper">faster-whisper（本地·中文优先）</option>
+            <option value="moonshine">moonshine（本地·英文流式）</option>
+            <option value="funasr">FunASR / Paraformer（本地·中文流式）</option>
+            <option value="volcengine">☁️ 火山引擎（云端·豆包流式）</option>
+            <option value="tencent">☁️ 腾讯云（云端·大模型 2.0）</option>
+            <option value="alicloud">☁️ 阿里云（云端·智能语音交互）</option>
           </select>
         </div>
         <div class="device-status" id="engineStatus"></div>
@@ -51,6 +54,7 @@
         <div class="field-label">语言</div>
         <input type="text" id="langInput" class="text-input" value="zh"/>
       </div>
+      <button class="asr-settings-btn" id="btnAsrSettings" style="display:none">🔑 云 ASR 凭证设置</button>
     </div>
 
     <!-- Devices -->
@@ -270,6 +274,26 @@
 
 <!-- LOG PANEL -->
 <div id="logPanel"><div id="logContent"></div></div>
+
+<!-- ASR SETTINGS MODAL -->
+<div class="modal-backdrop" id="asrModal" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🔑 云 ASR 凭证设置</h2>
+      <button class="modal-close" id="asrModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">选择语音识别服务商并填入 API Key（凭证仅保存在本机，不上传）</p>
+      <div class="asr-provider-list" id="asrProviderList"></div>
+      <div id="asrFields"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="asrTestResult"></span>
+      <button class="asr-btn" id="btnAsrTest">测试连接</button>
+      <button class="asr-btn primary" id="btnAsrSave">保存</button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="main.js"></script>
 </body>

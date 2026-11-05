@@ -8,7 +8,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.7x-orange.svg)](https://www.rust-lang.org)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-yellow.svg)](https://www.python.org)
 
-**开源免费 · 完全本地 · 隐私零风险 · 多引擎可插拔**
+**开源免费 · 本地优先 · 云端 BYOK 可插拔 · 隐私零风险**
 
 </div>
 
@@ -28,8 +28,9 @@
 |---|---|
 | 🎙️ 双路采集 | 麦克风 + 系统内录并行，物理隔离区分「本端 / 远端」说话人 |
 | 🧠 多引擎可插拔 | faster-whisper（中文优先，默认）/ moonshine（英文流式）/ FunASR·Paraformer（中文流式） |
+| ☁️ 云端 ASR（BYOK） | 火山引擎 / 腾讯云 / 阿里云，仅需填入 API Key，无需本地模型与 Python |
 | ⚡ 低延迟 | 160ms 音频块 + 本地推理，实时字幕无感知延迟 |
-| 🔒 完全本地 | 所有数据留在本地磁盘，不经过任何服务器 |
+| 🔒 隐私可控 | 本地引擎数据零上传；云端引擎仅在显式选择时上传音频 |
 | ✨ AI 摘要 | 对接 OpenAI 兼容端点（本地 Ollama / LM Studio），生成结构化纪要 |
 | 📁 一键导出 | Markdown / SRT 字幕 / 纯文本，含时间戳与说话人标记 |
 
@@ -44,7 +45,8 @@
         ↓
    VAD 静音检测 → 多引擎抽象 TranscriptionEngine
         ↓
-   faster-whisper / moonshine / funasr（Python 子进程 JSON 协议）
+   ┌─ 本地：faster-whisper / moonshine / funasr（Python 子进程）
+   └─ 云端：火山引擎 / 腾讯云 / 阿里云（Rust WebSocket 流式，HMAC 签名）
         ↓
    Segment { source, speaker, text, start, end }
         ↓
@@ -56,6 +58,7 @@
 - **桌面框架**：Tauri 2 + Rust（包体 ~10MB，内存占用低）
 - **音频采集**：`cpal`（WASAPI / CoreAudio / ALSA）
 - **转写引擎**：多引擎可插拔，默认 `faster-whisper`（中文 CER 业界领先）
+- **云端 ASR**：原生 `tokio-tungstenite` WebSocket 客户端，火山（HMAC-SHA256）/ 腾讯（HMAC-SHA1）/ 阿里（POP 签名 + CreateToken），零 Python 依赖
 - **核心库**：`moonshine-core`（UI 无关，可独立编译测试）
 
 > 详细设计见 [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md)，选型依据见 [`doc/竞品调研-20261026.md`](doc/竞品调研-20261026.md)。
@@ -101,13 +104,25 @@ cargo tauri build          # 按当前平台产出安装包（NSIS / DMG / AppIm
 
 ## 🧠 多引擎说明
 
+### 本地引擎（隐私优先）
+
 | 引擎 | 定位 | 中文 | 安装 |
 |---|---|---|---|
 | **faster-whisper** | 默认，通用首选 | **强**（large-v3 turbo） | `pip install faster-whisper` |
 | **moonshine** | 英文流式，低延迟 | 弱 | `pip install moonshine-voice` |
 | **FunASR / Paraformer** | 中文流式专用 | **强** | `pip install funasr`（需 torch） |
 
-引擎在 App 内「转写引擎」面板切换；首次使用会自动下载对应模型。
+### 云端 ASR（BYOK，无需本地模型）
+
+| 服务商 | 产品 | 鉴权方式 | 所需 Key |
+|---|---|---|---|
+| **火山引擎** | 豆包流式识别 2.0 | HMAC-SHA256 签名 | AccessKey ID + Secret Key + App ID |
+| **腾讯云** | 实时语音识别（大模型 2.0） | HMAC-SHA1 签名 | AppID + SecretId + SecretKey |
+| **阿里云** | 智能语音交互（NLS） | POP 签名 + CreateToken | AccessKey ID + AccessKey Secret + AppKey |
+
+在 App 内「转写引擎」面板切换到云引擎，点击「云 ASR 凭证设置」填入 Key 即可使用，支持「测试连接」验证凭证；凭证仅保存在本机，不上传。
+
+引擎在 App 内「转写引擎」面板切换；本地引擎首次使用会自动下载对应模型。
 
 ---
 
@@ -136,7 +151,7 @@ moonshine-meeting-assistant/
 │   └── core/                   # moonshine-core 核心库（UI 无关）
 │       └── src/
 │           ├── audio/          # cpal 双路采集
-│           ├── engine/         # 引擎抽象 + faster-whisper/moonshine/funasr
+│           ├── engine/         # 引擎抽象 + 本地引擎 + remote/（火山/腾讯/阿里云 ASR）
 │           ├── vad.rs          # 能量 VAD
 │           ├── diarization.rs  # 说话人归属
 │           ├── summary.rs      # OpenAI 兼容摘要

@@ -291,8 +291,31 @@ buffer 余量：~20ms
 | README 重写 | ✅ 完成 |
 | `cargo check` / `cargo clippy` 通过 | ✅ 完成 |
 
+---
+
+## 2026-11-05 · 云端 ASR 接入（BYOK，参考 coretab）
+
+**目标**：参考 `xiaopengs/coretab` 的 ASR Provider 抽象，让引擎可接入远程 ASR（火山引擎 / 腾讯云 / 阿里云），仅需配置 API Key。
+
+**变更清单**：
+
+| 项 | 状态 |
+|---|---|
+| `EngineKind` 新增 Volcengine / Tencent / Alicloud | ✅ 完成 |
+| `RemoteCredentials` 嵌套凭证结构（BYOK） | ✅ 完成 |
+| `engine/remote/` 通用 WebSocket 流式会话框架 | ✅ 完成 |
+| `engine/remote/sign.rs` 签名工具（HMAC-SHA256/SHA1 + 阿里 POP） | ✅ 完成 |
+| 火山引擎接入（HMAC-SHA256 + 豆包流式 2.0） | ✅ 完成 |
+| 腾讯云接入（HMAC-SHA1 + 大模型 2.0 / 说话人分离） | ✅ 完成 |
+| 阿里云接入（POP 签名 + CreateToken + SpeechTranscriber） | ✅ 完成 |
+| Tauri 命令：`get_asr_providers` / `save_asr_settings` / `load_asr_settings` / `test_asr_connection` | ✅ 完成 |
+| 前端 ASR 设置面板（服务商选择 + Key 填写 + 测试连接） | ✅ 完成 |
+| 凭证本地持久化（`asr-settings.json`，仅存本机） | ✅ 完成 |
+| `cargo check` / `cargo clippy` 通过 | ✅ 完成 |
+
 **待真机验证（沙箱无音频设备/模型）**：
 - [ ] 中文会议 WER/CER 复测（faster-whisper vs moonshine vs FunASR）
 - [ ] 系统内录 + 麦克风双路采集的设备兼容性、回声、采样率
 - [ ] 长会稳定性（2 小时、断电恢复、内存占用）
 - [ ] Tauri 打包（Windows NSIS / macOS DMG / Linux AppImage）
+- [ ] 三家云 ASR 真实 Key 联调（火山/腾讯/阿里握手与流式识别）

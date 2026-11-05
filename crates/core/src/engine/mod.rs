@@ -8,6 +8,7 @@
 
 mod funasr;
 mod moonshine;
+pub mod remote;
 mod whisper;
 
 use std::io::{BufRead, BufReader, Write};
@@ -81,25 +82,99 @@ pub enum EngineKind {
     FasterWhisper,
     Moonshine,
     Funasr,
+    Volcengine,
+    Tencent,
+    Alicloud,
 }
 
 impl EngineKind {
-    /// 传给 Python 服务的引擎标识。
+    /// 传给 Python 服务的引擎标识（本地引擎）。
     pub fn as_str(&self) -> &'static str {
         match self {
             EngineKind::FasterWhisper => "faster_whisper",
             EngineKind::Moonshine => "moonshine",
             EngineKind::Funasr => "funasr",
+            EngineKind::Volcengine => "volcengine",
+            EngineKind::Tencent => "tencent",
+            EngineKind::Alicloud => "alicloud",
         }
     }
 
     /// 用户可读名称。
     pub fn label(&self) -> &'static str {
         match self {
-            EngineKind::FasterWhisper => "faster-whisper（中文优先）",
-            EngineKind::Moonshine => "moonshine（英文流式）",
-            EngineKind::Funasr => "FunASR / Paraformer（中文流式）",
+            EngineKind::FasterWhisper => "faster-whisper（本地·中文优先）",
+            EngineKind::Moonshine => "moonshine（本地·英文流式）",
+            EngineKind::Funasr => "FunASR / Paraformer（本地·中文流式）",
+            EngineKind::Volcengine => "火山引擎（云端·豆包流式）",
+            EngineKind::Tencent => "腾讯云（云端·大模型 2.0）",
+            EngineKind::Alicloud => "阿里云（云端·智能语音交互）",
         }
+    }
+
+    /// 是否云端 ASR（无需本地模型 / Python 依赖）。
+    pub fn is_remote(&self) -> bool {
+        matches!(
+            self,
+            EngineKind::Volcengine | EngineKind::Tencent | EngineKind::Alicloud
+        )
+    }
+}
+
+/// 云端 ASR 凭证（BYOK 模式，参考 coretab 的 credentials 结构）。
+///
+/// 用户在各云控制台开通语音识别服务后填入对应 key，无需本地模型。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RemoteCredentials {
+    #[serde(default)]
+    pub volcengine: Option<VolcengineCreds>,
+    #[serde(default)]
+    pub tencent: Option<TencentCreds>,
+    #[serde(default)]
+    pub alicloud: Option<AlicloudCreds>,
+}
+
+/// 火山引擎（豆包流式识别）凭证。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct VolcengineCreds {
+    pub access_key_id: String,
+    pub secret_key: String,
+    pub app_id: String,
+}
+
+impl VolcengineCreds {
+    pub fn is_complete(&self) -> bool {
+        !self.access_key_id.is_empty() && !self.secret_key.is_empty() && !self.app_id.is_empty()
+    }
+}
+
+/// 腾讯云（实时语音识别）凭证。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TencentCreds {
+    pub app_id: String,
+    pub secret_id: String,
+    pub secret_key: String,
+}
+
+impl TencentCreds {
+    pub fn is_complete(&self) -> bool {
+        !self.app_id.is_empty() && !self.secret_id.is_empty() && !self.secret_key.is_empty()
+    }
+}
+
+/// 阿里云（智能语音交互）凭证。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AlicloudCreds {
+    pub access_key_id: String,
+    pub access_key_secret: String,
+    pub app_key: String,
+}
+
+impl AlicloudCreds {
+    pub fn is_complete(&self) -> bool {
+        !self.access_key_id.is_empty()
+            && !self.access_key_secret.is_empty()
+            && !self.app_key.is_empty()
     }
 }
 
@@ -111,6 +186,8 @@ pub struct EngineConfig {
     pub language: Option<String>,
     pub python: String,
     pub script: PathBuf,
+    /// 云端 ASR 凭证（kind 为云端引擎时必填）。
+    pub remote: Option<RemoteCredentials>,
 }
 
 impl Default for EngineConfig {
@@ -121,6 +198,7 @@ impl Default for EngineConfig {
             language: Some("zh".to_string()),
             python: if cfg!(windows) { "python".into() } else { "python3".into() },
             script: PathBuf::from("python/engine_service.py"),
+            remote: None,
         }
     }
 }
@@ -158,6 +236,9 @@ pub fn create_engine(
         EngineKind::FasterWhisper => Ok(Box::new(FasterWhisperEngine::new(config, source)?)),
         EngineKind::Moonshine => Ok(Box::new(MoonshineEngine::new(config, source)?)),
         EngineKind::Funasr => Ok(Box::new(FunasrEngine::new(config, source)?)),
+        EngineKind::Volcengine => Ok(Box::new(remote::VolcengineEngine::connect(config, source)?)),
+        EngineKind::Tencent => Ok(Box::new(remote::TencentEngine::connect(config, source)?)),
+        EngineKind::Alicloud => Ok(Box::new(remote::AlicloudEngine::connect(config, source)?)),
     }
 }
 

@@ -56,6 +56,14 @@ const els = {
   waveformLabel: $('waveformLabel'),
   summaryCard: $('summaryCard'),
   versionTag: $('versionTag'),
+  btnAsrSettings: $('btnAsrSettings'),
+  asrModal: $('asrModal'),
+  asrProviderList: $('asrProviderList'),
+  asrFields: $('asrFields'),
+  asrTestResult: $('asrTestResult'),
+  btnAsrTest: $('btnAsrTest'),
+  btnAsrSave: $('btnAsrSave'),
+  asrModalClose: $('asrModalClose'),
 };
 
 // ============================================================
@@ -428,18 +436,174 @@ async function generateSummary() {
 }
 
 // ============================================================
+// CLOUD ASR SETTINGS
+// ============================================================
+let ASR_PROVIDERS = [];
+let ASR_SETTINGS = { volcengine: null, tencent: null, alicloud: null };
+let ASR_SELECTED_PROVIDER = 'volcengine';
+let ASR_MODELS = {};
+
+async function loadAsrProviders() {
+  try {
+    ASR_PROVIDERS = await invoke('get_asr_providers');
+  } catch (e) {
+    ASR_PROVIDERS = [];
+    addLog('[ERROR] 加载 ASR 服务商失败: ' + e, 'err');
+  }
+}
+
+async function loadAsrSettings() {
+  try {
+    ASR_SETTINGS = (await invoke('load_asr_settings')) || {};
+  } catch (e) {
+    ASR_SETTINGS = {};
+  }
+  try {
+    ASR_MODELS = JSON.parse(localStorage.getItem('asr_models') || '{}');
+  } catch (e) {
+    ASR_MODELS = {};
+  }
+}
+
+function openAsrSettings() {
+  if (!ASR_PROVIDERS.length) return;
+  if (!ASR_PROVIDERS.find((p) => p.id === ASR_SELECTED_PROVIDER)) {
+    ASR_SELECTED_PROVIDER = ASR_PROVIDERS[0].id;
+  }
+  els.asrTestResult.textContent = '';
+  els.asrTestResult.className = 'asr-test-result';
+  renderAsrProviders();
+  renderAsrFields(ASR_SELECTED_PROVIDER);
+  els.asrModal.style.display = 'flex';
+}
+
+function closeAsrSettings() {
+  els.asrModal.style.display = 'none';
+}
+
+function renderAsrProviders() {
+  els.asrProviderList.innerHTML = ASR_PROVIDERS.map((p) => `
+    <label class="asr-provider-option ${ASR_SELECTED_PROVIDER === p.id ? 'selected' : ''}">
+      <input type="radio" name="asr-provider" value="${p.id}" ${ASR_SELECTED_PROVIDER === p.id ? 'checked' : ''}/>
+      <span>${p.name}</span>
+    </label>
+  `).join('');
+  els.asrProviderList.querySelectorAll('input[name="asr-provider"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      ASR_SELECTED_PROVIDER = r.value;
+      els.asrTestResult.textContent = '';
+      els.asrTestResult.className = 'asr-test-result';
+      renderAsrProviders();
+      renderAsrFields(ASR_SELECTED_PROVIDER);
+    });
+  });
+}
+
+function renderAsrFields(providerId) {
+  const p = ASR_PROVIDERS.find((x) => x.id === providerId);
+  if (!p) { els.asrFields.innerHTML = ''; return; }
+  const creds = (ASR_SETTINGS && ASR_SETTINGS[providerId]) || {};
+  const fields = p.keyFields.map((f) => `
+    <label class="asr-field">
+      <span class="asr-field-label">${f.label}</span>
+      <input type="${f.type || 'text'}" data-cred-key="${f.key}" placeholder="${f.placeholder || ''}" value="${escHtml(creds[f.key] || '')}" autocomplete="off"/>
+    </label>
+  `).join('');
+  const model = ASR_MODELS[providerId] || p.models[0].id;
+  const models = p.models.map((m) => `<option value="${m.id}" ${model === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
+  els.asrFields.innerHTML = `
+    <h4 class="asr-section-title">${p.name} 配置</h4>
+    ${fields}
+    <label class="asr-field">
+      <span class="asr-field-label">识别模型</span>
+      <select data-asr-model>${models}</select>
+    </label>
+    <p class="asr-help">💡 在 <a href="${p.console}" target="_blank" rel="noopener">${p.name}控制台</a> 开通语音识别并创建应用获取 Key</p>
+  `;
+}
+
+function gatherAsrCreds(providerId) {
+  const p = ASR_PROVIDERS.find((x) => x.id === providerId);
+  if (!p) return null;
+  const creds = {};
+  els.asrFields.querySelectorAll('[data-cred-key]').forEach((inp) => {
+    creds[inp.dataset.credKey] = inp.value.trim();
+  });
+  return creds;
+}
+
+async function persistAsrSettings() {
+  const creds = gatherAsrCreds(ASR_SELECTED_PROVIDER);
+  if (!creds) return;
+  const merged = {
+    volcengine: (ASR_SETTINGS && ASR_SETTINGS.volcengine) || null,
+    tencent: (ASR_SETTINGS && ASR_SETTINGS.tencent) || null,
+    alicloud: (ASR_SETTINGS && ASR_SETTINGS.alicloud) || null,
+  };
+  merged[ASR_SELECTED_PROVIDER] = creds;
+  await invoke('save_asr_settings', { settings: merged });
+  ASR_SETTINGS = merged;
+
+  const modelSel = els.asrFields.querySelector('[data-asr-model]');
+  if (modelSel) ASR_MODELS[ASR_SELECTED_PROVIDER] = modelSel.value;
+  localStorage.setItem('asr_models', JSON.stringify(ASR_MODELS));
+
+  if (els.engineSelect.value === ASR_SELECTED_PROVIDER) {
+    els.modelInput.value = ASR_MODELS[ASR_SELECTED_PROVIDER];
+  }
+}
+
+async function saveAsrSettings() {
+  try {
+    await persistAsrSettings();
+    els.asrTestResult.textContent = '✓ 已保存';
+    els.asrTestResult.className = 'asr-test-result ok';
+    addLog('云 ASR 凭证已保存（' + ASR_SELECTED_PROVIDER + '）', 'info');
+  } catch (e) {
+    els.asrTestResult.textContent = '✗ 保存失败: ' + e;
+    els.asrTestResult.className = 'asr-test-result err';
+  }
+}
+
+async function testAsrConnection() {
+  els.asrTestResult.textContent = '连接测试中…';
+  els.asrTestResult.className = 'asr-test-result';
+  els.btnAsrTest.disabled = true;
+  try {
+    await persistAsrSettings();
+    const def = ASR_PROVIDERS.find((p) => p.id === ASR_SELECTED_PROVIDER)?.models[0].id;
+    const model = ASR_MODELS[ASR_SELECTED_PROVIDER] || def || '';
+    await invoke('test_asr_connection', { engine: ASR_SELECTED_PROVIDER, model });
+    els.asrTestResult.textContent = '✓ 连接成功，凭证有效';
+    els.asrTestResult.className = 'asr-test-result ok';
+  } catch (e) {
+    els.asrTestResult.textContent = '✗ ' + e;
+    els.asrTestResult.className = 'asr-test-result err';
+  }
+  els.btnAsrTest.disabled = false;
+}
+
+// ============================================================
 // ENGINE MODEL DEFAULTS
 // ============================================================
 const ENGINE_DEFAULTS = {
-  faster_whisper: { model: 'large-v3-turbo', lang: 'zh' },
-  moonshine: { model: 'small_streaming', lang: 'en' },
-  funasr: { model: 'paraformer-zh', lang: 'zh' },
+  faster_whisper: { model: 'large-v3-turbo', lang: 'zh', remote: false },
+  moonshine: { model: 'small_streaming', lang: 'en', remote: false },
+  funasr: { model: 'paraformer-zh', lang: 'zh', remote: false },
+  volcengine: { model: 'bigmodel', lang: 'zh-CN', remote: true },
+  tencent: { model: '16k_zh_en_2.0', lang: 'zh-CN', remote: true },
+  alicloud: { model: 'domain-meeting-domain', lang: 'zh-CN', remote: true },
 };
 els.engineSelect.addEventListener('change', () => {
   const d = ENGINE_DEFAULTS[els.engineSelect.value] || ENGINE_DEFAULTS.faster_whisper;
-  els.modelInput.value = d.model;
+  els.modelInput.value = ASR_MODELS[els.engineSelect.value] || d.model;
   els.langInput.value = d.lang;
-  setDeviceStatus(els.engineStatus, 'ok', '引擎已切换，模型加载将在首次录制时进行');
+  els.btnAsrSettings.style.display = d.remote ? '' : 'none';
+  if (d.remote) {
+    setDeviceStatus(els.engineStatus, 'warn', '云端引擎：请先配置 API Key');
+  } else {
+    setDeviceStatus(els.engineStatus, 'ok', '引擎已切换，模型加载将在首次录制时进行');
+  }
 });
 
 // ============================================================
@@ -451,6 +615,12 @@ els.btnClear.addEventListener('click', clearTranscript);
 els.btnRefresh.addEventListener('click', () => { if (!S.isRunning) loadDevices(); });
 els.btnSummarize.addEventListener('click', generateSummary);
 $('guideToggle').addEventListener('click', () => $('loopGuide').classList.toggle('visible'));
+
+els.btnAsrSettings.addEventListener('click', openAsrSettings);
+els.btnAsrTest.addEventListener('click', testAsrConnection);
+els.btnAsrSave.addEventListener('click', saveAsrSettings);
+els.asrModalClose.addEventListener('click', closeAsrSettings);
+els.asrModal.addEventListener('click', (e) => { if (e.target === els.asrModal) closeAsrSettings(); });
 
 let panelOpen = true;
 els.panelToggleBtn.addEventListener('click', () => {
@@ -510,6 +680,8 @@ window.addEventListener('load', async () => {
     els.versionTag.textContent = 'v' + v;
   } catch (e) { /* ignore */ }
   await bindEvents();
+  await loadAsrProviders();
+  await loadAsrSettings();
   await loadDevices();
 });
 window.addEventListener('resize', setupCanvas);
