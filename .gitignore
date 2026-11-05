@@ -1,0 +1,23 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules/
+
+# Tauri 构建产物
+src-tauri/target/
+src-tauri/gen/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 模型缓存
+.cache/
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -256,3 +256,43 @@ buffer 余量：~20ms
 1. Windows 机器上运行 `npm run build -- --win` 验证打包
 2. 在 Windows 上实测内录检测（sounddevice.query_devices() 输出）
 3. 根据实测调整 isLoopback() 关键词
+
+---
+
+## 更新记录（2026-10-26）
+
+### 本次提交：深度重构 — Electron → Tauri 2 + Rust，多引擎可插拔
+
+**背景**：基于 [`竞品调研-20261026.md`](./竞品调研-20261026.md)，对齐 Meetily（Tauri+Rust）、MacParakeet（中文基准）的工程实践，对 v1 Electron 架构进行深度重构。
+
+**决策**：
+
+| 决策项 | 结论 |
+|---|---|
+| 桌面框架 | Electron 28 → **Tauri 2 + Rust** |
+| 推理引擎 | 单 moonshine → **多引擎可插拔**（默认 faster-whisper，保留 moonshine，可选 FunASR） |
+| 音频采集 | sounddevice → **cpal**（Rust 原生） |
+| 说话人分离 | 双路物理隔离（落地为 `DualChannelDiarizer`） |
+| AI 摘要 | Mock → **OpenAI 兼容端点**（本地 Ollama） |
+
+**变更清单**：
+
+| 项 | 状态 |
+|---|---|
+| 修复 main.js 致命语法错误（多余右括号） | ✅ 随架构迁移消除 |
+| 补全 MIT LICENSE（此前 license=null） | ✅ 完成 |
+| `crates/core` 核心库（UI 无关，可独立编译） | ✅ 完成 |
+| 多引擎抽象 `TranscriptionEngine` + 3 后端 | ✅ 完成 |
+| `src-tauri` Tauri 2 壳（命令/事件/运行时） | ✅ 完成 |
+| `ui/` 前端（延续 v2.0 设计 + 引擎选择） | ✅ 完成 |
+| `python/engine_service.py` 多引擎 JSON 服务 | ✅ 完成 |
+| `doc/ARCHITECTURE.md` 架构文档 | ✅ 完成 |
+| `doc/竞品调研-20261026.md` 调研文档 | ✅ 完成 |
+| README 重写 | ✅ 完成 |
+| `cargo check` / `cargo clippy` 通过 | ✅ 完成 |
+
+**待真机验证（沙箱无音频设备/模型）**：
+- [ ] 中文会议 WER/CER 复测（faster-whisper vs moonshine vs FunASR）
+- [ ] 系统内录 + 麦克风双路采集的设备兼容性、回声、采样率
+- [ ] 长会稳定性（2 小时、断电恢复、内存占用）
+- [ ] Tauri 打包（Windows NSIS / macOS DMG / Linux AppImage）

@@ -1,0 +1,16 @@
+[package]
+name = "moonshine-core"
+description = "Moonshine 会议助手核心库：音频采集 / 多引擎可插拔转写 / VAD / 说话人分离 / 摘要 / 导出"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+cpal = { workspace = true }
+base64 = { workspace = true }
+ureq = { workspace = true }

@@ -1,0 +1,13 @@
+# Moonshine 会议助手 — Python 引擎依赖
+# 核心依赖（必装）
+numpy>=1.24.0
+
+# 转写引擎（按需至少安装一个）
+# 默认引擎：中文优先
+faster-whisper>=1.0.0
+
+# 可选：英文流式（低延迟）
+# moonshine-voice>=1.0.0
+
+# 可选：中文流式专用（Paraformer，需 torch）
+# funasr>=1.0.0

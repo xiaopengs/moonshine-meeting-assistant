@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Moonshine 会议助手</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="titlebar-brand">
+    <div class="titlebar-logo">🌙</div>
+    <span class="titlebar-name">Moonshine</span>
+    <span class="titlebar-version" id="versionTag">v2.0</span>
+  </div>
+  <div class="titlebar-spacer"></div>
+  <div class="titlebar-right">
+    <div class="status-pill" id="statusPill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">待机</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN BODY -->
+<div class="app-body">
+
+  <!-- ===== LEFT SIDEBAR ===== -->
+  <div class="sidebar">
+
+    <!-- Engine -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">🧠</span> 转写引擎</div>
+      <div class="field">
+        <div class="select-wrap">
+          <select id="engineSelect">
+            <option value="faster_whisper">faster-whisper（中文优先）</option>
+            <option value="moonshine">moonshine（英文流式）</option>
+            <option value="funasr">FunASR / Paraformer（中文流式）</option>
+          </select>
+        </div>
+        <div class="device-status" id="engineStatus"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">模型</div>
+        <input type="text" id="modelInput" class="text-input" value="large-v3-turbo"/>
+      </div>
+      <div class="field">
+        <div class="field-label">语言</div>
+        <input type="text" id="langInput" class="text-input" value="zh"/>
+      </div>
+    </div>
+
+    <!-- Devices -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">🎤</span> 输入设备</div>
+      <div class="field">
+        <div class="field-label">麦克风</div>
+        <div class="select-wrap">
+          <select id="micSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="micStatus"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">系统内录</div>
+        <div class="select-wrap">
+          <select id="loopSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="loopStatus"></div>
+      </div>
+      <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备列表</button>
+      <div class="loopback-guide" id="loopGuide">
+        <strong>💡 启用 Windows 系统内录</strong>
+        <ol>
+          <li>右键<span>任务栏音量图标</span> → 打开声音设置</li>
+          <li>拉到底 → <span>声音控制面板</span></li>
+          <li>切换到「<span>录制</span>」选项卡</li>
+          <li>右键空白处 → ☑️<span>显示禁用的设备</span></li>
+          <li>找到「<span>立体声混音</span>」→ 右键 → 启用</li>
+          <li>回到 App 点击「↻ 刷新设备」</li>
+        </ol>
+      </div>
+      <button class="guide-toggle" id="guideToggle">查看内录帮助</button>
+    </div>
+
+    <!-- Waveform -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">〰️</span> 音频电平</div>
+      <div class="waveform-wrap" id="waveformWrap">
+        <canvas id="waveformCanvas"></canvas>
+        <div class="waveform-idle" id="waveformIdle">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+        <div class="vad-label" id="vadLabel">
+          <div class="vad-dot"></div>
+          <span id="vadText">等待输入</span>
+        </div>
+        <div class="waveform-label" id="waveformLabel">待机</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">📊</span> 本次会议</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">录制时长</div>
+          <div class="stat-value" id="statDuration">00:00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">麦克风</div>
+          <div class="stat-value green" id="statMic">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">内录</div>
+          <div class="stat-value blue" id="statLoop">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">总字数</div>
+          <div class="stat-value orange" id="statChars">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">⚙️</span> 选项</div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">启用 VAD</div>
+          <div class="toggle-desc">静音自动跳过，降低噪音</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="vadToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">双路同时采集</div>
+          <div class="toggle-desc">麦克风 + 系统内录并行</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="dualToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="ctrl-area">
+      <button class="record-btn start" id="btnRecord">
+        <span id="recordIcon">⏺</span>
+        <span id="recordLabel">开始录制</span>
+        <div class="pulse-ring"></div>
+      </button>
+      <div class="export-row">
+        <div class="export-select">
+          <div class="select-wrap">
+            <select id="exportFormat">
+              <option value="md">📄 Markdown</option>
+              <option value="srt">🎬 SRT 字幕</option>
+              <option value="txt">📝 纯文本</option>
+            </select>
+          </div>
+        </div>
+        <button class="export-btn" id="btnExport">💾 导出</button>
+      </div>
+      <div class="shortcut-hint">
+        <kbd>⌘R</kbd> 开始 &nbsp;<kbd>⌘S</kbd> 停止 &nbsp;<kbd>⌘E</kbd> 导出
+      </div>
+    </div>
+
+    <div id="envAlert"></div>
+  </div>
+  <!-- /sidebar -->
+
+  <!-- ===== CENTER ===== -->
+  <div class="center" id="centerArea">
+    <div class="transcript-header">
+      <span class="transcript-title">实时字幕</span>
+      <span class="transcript-badge" id="totalBadge">0 条</span>
+      <div class="transcript-meta">
+        <span class="transcript-time" id="totalTime">00:00:00</span>
+        <button class="transcript-clear" id="btnClear">清空</button>
+      </div>
+    </div>
+
+    <div id="transcriptLog">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-illustration"><span class="icon">🎙️</span></div>
+        <div class="empty-title">准备就绪</div>
+        <div class="empty-desc">选择设备与引擎后点击「开始录制」<br>首次使用请允许系统调用麦克风权限</div>
+        <div class="empty-hint">按 <kbd>⌘R</kbd> 或点击下方按钮开始</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="ai-panel" id="aiPanel">
+    <div class="ai-header">
+      <div class="ai-header-icon">✨</div>
+      <span class="ai-header-title">会议洞察</span>
+      <span class="ai-header-badge">AI</span>
+    </div>
+    <div class="ai-body">
+
+      <!-- Summary -->
+      <div class="ai-section">
+        <div class="ai-section-title">📝 会议摘要</div>
+        <div class="summary-card" id="summaryCard">
+          <span class="placeholder">停止录制后点击「生成摘要」…</span>
+        </div>
+        <button class="summarize-btn" id="btnSummarize">✨ 生成摘要</button>
+      </div>
+
+      <!-- Keywords -->
+      <div class="ai-section">
+        <div class="ai-section-title">🔑 关键词</div>
+        <div class="kw-tags" id="kwTags"><span class="kw-tag" style="opacity:.4">—</span></div>
+      </div>
+
+      <!-- Speaking ratio -->
+      <div class="ai-section">
+        <div class="ai-section-title">🎙️ 麦克风 / 内录 比例</div>
+        <div class="ratio-chart">
+          <div class="ratio-bar-wrap">
+            <div class="ratio-seg mic" id="ratioMic" style="width:50%"></div>
+            <div class="ratio-seg loop" id="ratioLoop" style="width:50%"></div>
+          </div>
+          <div class="ratio-legend">
+            <div class="ratio-legend-item"><div class="dot mic"></div><span id="ratioMicPct">50%</span> 麦克风</div>
+            <div class="ratio-legend-item"><div class="dot loop"></div><span id="ratioLoopPct">50%</span> 内录</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speaking speed -->
+      <div class="ai-section">
+        <div class="ai-section-title">⚡ 语速</div>
+        <div class="speed-row">
+          <div>
+            <span class="speed-val" id="speedVal">0</span>
+            <span class="speed-unit">字/分钟</span>
+          </div>
+        </div>
+        <div class="speed-bar"><div class="speed-fill" id="speedFill" style="width:0%"></div></div>
+      </div>
+
+      <!-- Meeting timer -->
+      <div class="ai-section">
+        <div class="ai-section-title">⏱️ 会议时长</div>
+        <div class="stat-card" style="grid-template-columns:1fr">
+          <div class="stat-label">已录制</div>
+          <div class="stat-value orange" id="aiDuration">00:00:00</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel toggle -->
+  <button class="panel-toggle-btn" id="panelToggleBtn" title="切换侧边栏">◀</button>
+
+</div>
+<!-- /app-body -->
+
+<!-- LOG PANEL -->
+<div id="logPanel"><div id="logContent"></div></div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
