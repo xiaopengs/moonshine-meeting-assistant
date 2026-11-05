@@ -75,9 +75,12 @@ Tauri 不支持从 Linux 交叉编译 Windows GUI 包，故提供 [Windows CI �
 
 | 产物 | 说明 | Artifact |
 |---|---|---|
-| `audio-probe.exe` | **免安装音频诊断**，单文件，无 WebView2 / Python / Key 依赖 | `audio-probe-windows-x64` |
-| `*_x64-setup.exe` | 完整桌面应用 NSIS 安装包 | `moonshine-windows-x64` |
+| `audio-probe-windows-x64.exe` | **免安装音频诊断**，单文件，无 WebView2 / Python / Key 依赖 | ✅ [已构建，直接下载](https://github.com/xiaopengs/moonshine-meeting-assistant/releases/tag/tools-v2.0.0) |
+| `*_x64-setup.exe` | 完整桌面应用 NSIS 安装包 | `moonshine-windows-x64`（需自行构建 / CI） |
 | `moonshine-meeting-assistant.exe` | 裸 exe（云 ASR 直接可用） | 同上 |
+
+> **诊断 exe 已直接构建并发布到 [Releases/tools-v2.0.0](https://github.com/xiaopengs/moonshine-meeting-assistant/releases/tag/tools-v2.0.0)**（PE32+ 原生、539 KB、仅依赖系统 DLL，双击即用）。
+> 桌面 GUI 应用因 Tauri 不支持 Linux→Windows 交叉编译，需通过下方本机脚本或 CI 构建。
 
 **建议先跑 `audio-probe.exe`**：它逐个真实打开输入设备，打印命中配置或原始系统错误；播放音乐时加 `--level` 可验证内录是否真有声音。完整用法与排错见 [本机测试与内录排错](doc/本机测试与内录排错.md)。
 

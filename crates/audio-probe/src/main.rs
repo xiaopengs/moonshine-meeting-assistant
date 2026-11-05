@@ -178,7 +178,23 @@ fn main() {
     println!("  4. 回到应用点「↻ 刷新设备」，再跑本工具确认");
     println!("  提示：若中文乱码，请在 Windows Terminal / PowerShell 7 运行，或先执行 chcp 65001");
     println!("================================================================");
+    pause_for_double_click(json_mode);
 }
+
+/// 双击运行时保留控制台窗口，避免诊断结果一闪而过（--json / 管道场景不阻塞）。
+#[cfg(windows)]
+fn pause_for_double_click(json_mode: bool) {
+    if json_mode {
+        return;
+    }
+    println!("\n（诊断完成，按 Enter 键退出）");
+    let _ = io::stdout().flush();
+    let mut buf = String::new();
+    let _ = io::stdin().read_line(&mut buf);
+}
+
+#[cfg(not(windows))]
+fn pause_for_double_click(_json_mode: bool) {}
 
 /// **同时**打开所有目标设备并采集若干秒，模拟真实「麦克风 + 系统内录」双路并发。
 /// 返回每个设备的 (index, 音频块数, 峰值, 平均绝对值)。
