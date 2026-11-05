@@ -38,22 +38,9 @@
 
 ## 🧱 技术架构
 
-```
-[麦克风 / 系统内录]
-        ↓
-   cpal 16kHz 采集（Rust）
-        ↓
-   VAD 静音检测 → 多引擎抽象 TranscriptionEngine
-        ↓
-   ┌─ 本地：faster-whisper / moonshine / funasr（Python 子进程）
-   └─ 云端：火山引擎 / 腾讯云 / 阿里云（Rust WebSocket 流式，HMAC 签名）
-        ↓
-   Segment { source, speaker, text, start, end }
-        ↓
-   说话人归属 → Session 聚合 → Tauri 事件 → 前端实时字幕
-        ↓
-   MD / SRT / TXT 导出 · OpenAI 兼容摘要
-```
+[![Moonshine 整体架构](assets/architecture.svg)](assets/architecture.svg)
+
+> 图中**绿色**为本地引擎链路（音频与模型全程留在本机、零上传），**紫色**为云端 ASR 链路（BYOK，仅在显式选择时启用）。点击图片查看大图 · [SVG 源码](assets/architecture.svg)。
 
 - **桌面框架**：Tauri 2 + Rust（包体 ~10MB，内存占用低）
 - **音频采集**：`cpal`（WASAPI / CoreAudio / ALSA）
@@ -172,7 +159,9 @@ moonshine-meeting-assistant/
 │   ├── ARCHITECTURE.md         # 架构设计（重构版）
 │   ├── 竞品调研-20261026.md    # 竞品调研
 │   ├── PRD.md / PROGRESS.md / UI-SPEC-v2.md
-├── assets/                     # 图标资源
+├── assets/
+│   ├── architecture.svg        # 整体架构图（数据流视图）
+│   └── icon.*                  # 图标资源
 ├── LICENSE                     # MIT
 └── README.md
 ```

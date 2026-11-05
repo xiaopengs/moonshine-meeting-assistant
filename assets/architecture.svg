@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1160" viewBox="0 0 1000 1160" role="img" aria-label="Moonshine 整体架构图">
+  <defs>
+    <linearGradient id="topLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="0.5" stop-color="#bc8cff"/>
+      <stop offset="1" stop-color="#3fb950"/>
+    </linearGradient>
+    <linearGradient id="accentCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e2a45"/>
+      <stop offset="1" stop-color="#1c1633"/>
+    </linearGradient>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
+    </marker>
+    <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/>
+    </marker>
+    <marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#bc8cff"/>
+    </marker>
+  </defs>
+
+  <g font-family="'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, 'Segoe UI', 'Hiragino Sans GB', sans-serif">
+
+    <!-- background -->
+    <rect x="0" y="0" width="1000" height="1160" fill="#0b0f16"/>
+    <rect x="0" y="0" width="1000" height="4" fill="url(#topLine)"/>
+    <circle cx="900" cy="150" r="220" fill="#1f6feb" opacity="0.05"/>
+    <circle cx="90" cy="880" r="240" fill="#a371f7" opacity="0.045"/>
+
+    <!-- header -->
+    <text x="40" y="54" font-size="29" font-weight="700" fill="#e6edf3">Moonshine · 整体架构</text>
+    <text x="40" y="82" font-size="13.5" fill="#8b949e">本地优先 · 云端 BYOK 可插拔 · 双路物理隔离说话人 · Tauri 2 + Rust</text>
+    <rect x="700" y="34" width="84" height="26" rx="13" fill="#11233b" stroke="#1f6feb" stroke-width="1"/>
+    <text x="742" y="51" font-size="11.5" font-weight="600" fill="#79c0ff" text-anchor="middle">Tauri 2</text>
+    <rect x="792" y="34" width="76" height="26" rx="13" fill="#2b1a10" stroke="#9e6a03" stroke-width="1"/>
+    <text x="830" y="51" font-size="11.5" font-weight="600" fill="#e3b341" text-anchor="middle">Rust</text>
+    <rect x="876" y="34" width="84" height="26" rx="13" fill="#231a33" stroke="#8957e5" stroke-width="1"/>
+    <text x="918" y="51" font-size="11.5" font-weight="600" fill="#d2a8ff" text-anchor="middle">BYOK</text>
+    <path d="M40,100 L960,100" stroke="#21262d" stroke-width="1"/>
+
+    <!-- ===== 01 音频输入 ===== -->
+    <rect x="40" y="112" width="230" height="24" rx="12" fill="#11233b"/>
+    <circle cx="56" cy="124" r="3.5" fill="#58a6ff"/>
+    <text x="68" y="128" font-size="12" font-weight="600" fill="#79c0ff">01  音频输入 · 双路隔离</text>
+
+    <rect x="40" y="142" width="440" height="72" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="56" y="158" width="40" height="40" rx="10" fill="#1f6feb"/>
+    <text x="76" y="184" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">M</text>
+    <text x="110" y="172" font-size="15" font-weight="600" fill="#e6edf3">麦克风</text>
+    <text x="110" y="192" font-size="11.5" fill="#8b949e">本端声音 · source = mic</text>
+    <rect x="520" y="142" width="440" height="72" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="536" y="158" width="40" height="40" rx="10" fill="#8957e5"/>
+    <text x="556" y="184" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">L</text>
+    <text x="590" y="172" font-size="15" font-weight="600" fill="#e6edf3">系统内录</text>
+    <text x="590" y="192" font-size="11.5" fill="#8b949e">会议远端声音 · source = loopback</text>
+
+    <path d="M260,214 L260,228 M740,214 L740,228 M260,228 L740,228" stroke="#3d4a5c" stroke-width="1.5" fill="none"/>
+    <path d="M500,228 L500,278" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="518" y="254" font-size="11" fill="#6e7681">双路独立 PCM 通道</text>
+
+    <!-- ===== 02 采集与预处理 ===== -->
+    <rect x="40" y="258" width="230" height="24" rx="12" fill="#102b30"/>
+    <circle cx="56" cy="270" r="3.5" fill="#39c5cf"/>
+    <text x="68" y="274" font-size="12" font-weight="600" fill="#56d4dd">02  采集与预处理</text>
+
+    <rect x="40" y="282" width="920" height="80" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="64" y="296" width="400" height="52" rx="8" fill="#0d1117" stroke="#21262d" stroke-width="1"/>
+    <text x="80" y="318" font-size="14" font-weight="600" fill="#e6edf3">cpal 16 kHz 单声道采集</text>
+    <text x="80" y="337" font-size="11.5" fill="#8b949e">WASAPI · CoreAudio · ALSA（Rust 原生）</text>
+    <path d="M474,322 L516,322" stroke="#39c5cf" stroke-width="2" marker-end="url(#ar)"/>
+    <rect x="528" y="296" width="408" height="52" rx="8" fill="#0d1117" stroke="#21262d" stroke-width="1"/>
+    <text x="544" y="318" font-size="14" font-weight="600" fill="#e6edf3">能量 VAD 静音检测</text>
+    <text x="544" y="337" font-size="11.5" fill="#8b949e">160 ms 音频块切分 · 静音跳帧</text>
+
+    <path d="M500,362 L500,420" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="518" y="394" font-size="11" fill="#6e7681">160 ms 音频块</text>
+
+    <!-- ===== 03 统一引擎抽象 ===== -->
+    <rect x="40" y="400" width="230" height="24" rx="12" fill="#221a35"/>
+    <circle cx="56" cy="412" r="3.5" fill="#bc8cff"/>
+    <text x="68" y="416" font-size="12" font-weight="600" fill="#d2a8ff">03  统一引擎抽象</text>
+
+    <rect x="40" y="424" width="920" height="64" rx="12" fill="url(#accentCard)" stroke="#7d5cbf" stroke-width="1.5"/>
+    <text x="64" y="454" font-size="16" font-weight="700" fill="#e6edf3">TranscriptionEngine (trait)</text>
+    <text x="936" y="454" font-size="12" font-weight="600" fill="#d2a8ff" text-anchor="end">feed() · flush() · drain()</text>
+    <text x="64" y="475" font-size="11.5" fill="#a9b4c4">本地引擎与云端 ASR 共用同一接口，按 EngineKind 动态分派</text>
+
+    <path d="M500,488 L500,510" stroke="#8b949e" stroke-width="1.5"/>
+    <path d="M290,510 L710,510" stroke="#8b949e" stroke-width="1.5"/>
+    <path d="M290,510 L290,560" stroke="#3fb950" stroke-width="2" marker-end="url(#arG)"/>
+    <path d="M710,510 L710,560" stroke="#bc8cff" stroke-width="2" marker-end="url(#arP)"/>
+    <text x="518" y="504" font-size="11" fill="#6e7681">按 EngineKind 分派</text>
+
+    <!-- ===== 04 可插拔引擎实现 ===== -->
+    <rect x="40" y="532" width="230" height="24" rx="12" fill="#2b2210"/>
+    <circle cx="56" cy="544" r="3.5" fill="#d29922"/>
+    <text x="68" y="548" font-size="12" font-weight="600" fill="#e3b341">04  可插拔引擎实现</text>
+
+    <!-- local -->
+    <rect x="40" y="564" width="440" height="182" rx="12" fill="#161b22" stroke="#2d5c38" stroke-width="1.5"/>
+    <rect x="40" y="564" width="440" height="4" rx="2" fill="#3fb950"/>
+    <text x="64" y="592" font-size="15" font-weight="700" fill="#56d364">本地引擎 · 隐私优先</text>
+    <text x="64" y="612" font-size="11.5" fill="#8b949e">Python 子进程 · stdin / stdout JSON 协议</text>
+    <path d="M64,624 L456,624" stroke="#2d333b" stroke-width="1"/>
+    <circle cx="70" cy="644" r="3.5" fill="#3fb950"/>
+    <text x="86" y="648" font-size="13" font-weight="600" fill="#e6edf3">faster-whisper</text>
+    <text x="456" y="648" font-size="11" fill="#8b949e" text-anchor="end">默认 · 中文 CER 优</text>
+    <circle cx="70" cy="672" r="3.5" fill="#3fb950"/>
+    <text x="86" y="676" font-size="13" font-weight="600" fill="#e6edf3">moonshine</text>
+    <text x="456" y="676" font-size="11" fill="#8b949e" text-anchor="end">英文流式 · 低延迟</text>
+    <circle cx="70" cy="700" r="3.5" fill="#3fb950"/>
+    <text x="86" y="704" font-size="13" font-weight="600" fill="#e6edf3">FunASR / Paraformer</text>
+    <text x="456" y="704" font-size="11" fill="#8b949e" text-anchor="end">中文流式专用</text>
+    <text x="64" y="730" font-size="10.5" fill="#6e7681">音频与模型全程留在本机，零上传</text>
+
+    <!-- cloud -->
+    <rect x="520" y="564" width="440" height="182" rx="12" fill="#161b22" stroke="#5b3f96" stroke-width="1.5"/>
+    <rect x="520" y="564" width="440" height="4" rx="2" fill="#bc8cff"/>
+    <text x="544" y="592" font-size="15" font-weight="700" fill="#d2a8ff">云端 ASR · BYOK</text>
+    <text x="544" y="612" font-size="11.5" fill="#8b949e">Rust 原生 WebSocket · HMAC 签名 · 零 Python</text>
+    <path d="M544,624 L936,624" stroke="#2d333b" stroke-width="1"/>
+    <circle cx="550" cy="644" r="3.5" fill="#bc8cff"/>
+    <text x="566" y="648" font-size="13" font-weight="600" fill="#e6edf3">火山引擎</text>
+    <text x="936" y="648" font-size="11" fill="#8b949e" text-anchor="end">HMAC-SHA256</text>
+    <circle cx="550" cy="672" r="3.5" fill="#bc8cff"/>
+    <text x="566" y="676" font-size="13" font-weight="600" fill="#e6edf3">腾讯云</text>
+    <text x="936" y="676" font-size="11" fill="#8b949e" text-anchor="end">HMAC-SHA1</text>
+    <circle cx="550" cy="700" r="3.5" fill="#bc8cff"/>
+    <text x="566" y="704" font-size="13" font-weight="600" fill="#e6edf3">阿里云</text>
+    <text x="936" y="704" font-size="11" fill="#8b949e" text-anchor="end">POP 签名 + Token</text>
+    <text x="544" y="730" font-size="10.5" fill="#6e7681">仅填 Key 即可用 · 凭证仅存本机 asr-settings.json</text>
+
+    <path d="M290,746 L500,796 M710,746 L500,796" stroke="#3d4a5c" stroke-width="1.5" fill="none"/>
+    <path d="M500,796 L500,820" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+
+    <!-- ===== 05 结构化与后处理 ===== -->
+    <rect x="40" y="800" width="230" height="24" rx="12" fill="#122a18"/>
+    <circle cx="56" cy="812" r="3.5" fill="#3fb950"/>
+    <text x="68" y="816" font-size="12" font-weight="600" fill="#7ee787">05  结构化与后处理</text>
+
+    <rect x="40" y="824" width="920" height="96" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="64" y="836" width="872" height="32" rx="8" fill="#0d1117" stroke="#21262d" stroke-width="1"/>
+    <text x="80" y="857" font-size="12.5" fill="#79c0ff" font-family="'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace">Segment { source, speaker, text, start, end }</text>
+    <rect x="64" y="880" width="250" height="28" rx="8" fill="#11233b" stroke="#1f4b7a" stroke-width="1"/>
+    <text x="189" y="899" font-size="11.5" font-weight="600" fill="#79c0ff" text-anchor="middle">说话人归属（双路隔离）</text>
+    <path d="M320,894 L350,894" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <rect x="360" y="880" width="250" height="28" rx="8" fill="#11233b" stroke="#1f4b7a" stroke-width="1"/>
+    <text x="485" y="899" font-size="11.5" font-weight="600" fill="#79c0ff" text-anchor="middle">Session 会话聚合</text>
+    <path d="M616,894 L646,894" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <rect x="656" y="880" width="280" height="28" rx="8" fill="#11233b" stroke="#1f4b7a" stroke-width="1"/>
+    <text x="796" y="899" font-size="11.5" font-weight="600" fill="#79c0ff" text-anchor="middle">Tauri IPC 事件推送</text>
+
+    <path d="M500,920 L500,972" stroke="#3d4a5c" stroke-width="1.5"/>
+    <path d="M186,972 L814,972" stroke="#3d4a5c" stroke-width="1.5"/>
+    <path d="M186,972 L186,984" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <path d="M500,972 L500,984" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+    <path d="M814,972 L814,984" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+
+    <!-- ===== 06 呈现与交付 ===== -->
+    <rect x="40" y="938" width="230" height="24" rx="12" fill="#2d1626"/>
+    <circle cx="56" cy="950" r="3.5" fill="#f778ba"/>
+    <text x="68" y="954" font-size="12" font-weight="600" fill="#f9a8d4">06  呈现与交付</text>
+    <text x="520" y="956" font-size="11" fill="#6e7681">Tauri emit：transcript / status / log</text>
+
+    <rect x="40" y="986" width="292" height="96" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="60" y="1002" width="4" height="16" rx="2" fill="#58a6ff"/>
+    <text x="72" y="1015" font-size="14" font-weight="700" fill="#e6edf3">实时字幕</text>
+    <text x="60" y="1038" font-size="11.5" fill="#8b949e">ui/ 前端 · v2.0 三栏布局</text>
+    <text x="60" y="1058" font-size="11" fill="#6e7681">transcript 事件驱动</text>
+
+    <rect x="354" y="986" width="292" height="96" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="374" y="1002" width="4" height="16" rx="2" fill="#3fb950"/>
+    <text x="386" y="1015" font-size="14" font-weight="700" fill="#e6edf3">一键导出</text>
+    <text x="374" y="1038" font-size="11.5" fill="#8b949e">Markdown · SRT · TXT</text>
+    <text x="374" y="1058" font-size="11" fill="#6e7681">含时间戳与说话人标记</text>
+
+    <rect x="668" y="986" width="292" height="96" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="688" y="1002" width="4" height="16" rx="2" fill="#d29922"/>
+    <text x="700" y="1015" font-size="14" font-weight="700" fill="#e6edf3">AI 会议摘要</text>
+    <text x="688" y="1038" font-size="11.5" fill="#8b949e">OpenAI 兼容端点</text>
+    <text x="688" y="1058" font-size="11" fill="#6e7681">Ollama · LM Studio（本地 LLM）</text>
+
+    <!-- footer -->
+    <path d="M40,1100 L960,1100" stroke="#21262d" stroke-width="1"/>
+    <text x="500" y="1126" font-size="11.5" fill="#6e7681" text-anchor="middle">Tauri 2 + Rust 桌面壳（src-tauri） · moonshine-core（UI 无关，可独立编译） · 前端零框架 · MIT</text>
+
+  </g>
+</svg>
