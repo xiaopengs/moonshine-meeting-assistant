@@ -1,0 +1,18 @@
+[package]
+name = "audio-probe"
+description = "Moonshine 会议助手 · 独立音频设备诊断工具（免安装单文件）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "audio-probe"
+path = "src/main.rs"
+
+[dependencies]
+moonshine-core = { path = "../core" }
+serde_json = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Console"] }

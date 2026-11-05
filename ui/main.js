@@ -18,6 +18,7 @@ const S = {
   timer: null,
   volumeHistory: new Array(40).fill(0),
   waveformAnimFrame: null,
+  devices: [],
 };
 
 // ============================================================
@@ -74,6 +75,13 @@ const els = {
   btnHelpClose: $('btnHelpClose'),
   btnHelpDoc: $('btnHelpDoc'),
   helpModalClose: $('helpModalClose'),
+  btnAudioDiag: $('btnAudioDiag'),
+  diagModal: $('diagModal'),
+  diagModalClose: $('diagModalClose'),
+  diagBody: $('diagBody'),
+  diagResult: $('diagResult'),
+  btnDiagRun: $('btnDiagRun'),
+  btnDiagClose: $('btnDiagClose'),
 };
 
 // ============================================================
@@ -148,7 +156,9 @@ async function loadDevices() {
   }
 
   els.envAlert.classList.remove('visible');
-  const inputs = devs.filter((d) => d.maxInputChannels > 0);
+  // 后端 AudioDevice 现输出 camelCase；兼容旧字段，且不再误过滤掉设备
+  const inputs = devs.filter((d) => (d.channels ?? d.maxInputChannels ?? 1) > 0);
+  S.devices = inputs;
 
   if (inputs.length === 0) {
     showAlert('⚠️ 未检测到任何音频输入设备，请检查麦克风连接或系统权限');
@@ -156,45 +166,127 @@ async function loadDevices() {
     return;
   }
 
-  els.micSelect.innerHTML = '';
-  els.loopSelect.innerHTML = '';
-  S.loopFound = false;
-  let micDevice = null;
+  const isStrong = (d) => d.isLoopback === true;
+  const isWeak = (d) => !isStrong(d) && d.loopbackHint === true;
 
-  inputs.forEach((d) => {
-    const label = `${d.index}: ${d.name}`;
-    const optMic = new Option(label, d.index);
-    const optLoop = new Option(label, d.index);
-    els.micSelect.add(optMic);
-    if (d.isLoopback && !S.loopFound) {
-      optLoop.text = label + ' ⭐';
-      els.loopSelect.add(optLoop, 0);
-      S.loopFound = true;
-      setDeviceStatus(els.loopStatus, 'ok', `检测到内录设备 ${d.name}`);
-    } else {
-      els.loopSelect.add(optLoop);
-    }
-    if (!micDevice && !d.isLoopback) micDevice = d;
+  // 内录下拉：列出【所有】输入设备。关键词识别可能漏判 WASAPI 回环 / PulseAudio
+  // monitor 设备，允许手动选任意设备作为内录源，避免「未检测到 Loopback」直接不可用。
+  const loopOrder = [...inputs].sort(
+    (a, b) => (isStrong(a) ? 0 : isWeak(a) ? 1 : 2) - (isStrong(b) ? 0 : isWeak(b) ? 1 : 2)
+      || a.index - b.index
+  );
+  els.loopSelect.innerHTML = '';
+  loopOrder.forEach((d) => {
+    const tag = isStrong(d) ? ' ⭐内录' : isWeak(d) ? ' 🔶疑似内录' : '';
+    els.loopSelect.add(new Option(`${d.index}: ${d.name}${tag}`, d.index));
   });
 
-  if (micDevice) {
-    els.micSelect.disabled = false;
-    S.micReady = true;
-    setDeviceStatus(els.micStatus, 'ok', `就绪: ${micDevice.name}`);
+  // 麦克风下拉：非内录设备优先
+  const micOrder = [...inputs].sort(
+    (a, b) => (isStrong(a) ? 1 : 0) - (isStrong(b) ? 1 : 0) || a.index - b.index
+  );
+  els.micSelect.innerHTML = '';
+  micOrder.forEach((d) => els.micSelect.add(new Option(`${d.index}: ${d.name}`, d.index)));
+
+  const strong = inputs.filter(isStrong);
+  const weak = inputs.filter(isWeak);
+  S.loopFound = strong.length > 0 || weak.length > 0;
+
+  if (strong.length) {
+    els.loopSelect.value = String(strong[0].index);
+    setDeviceStatus(els.loopStatus, 'ok', `检测到内录设备 ${strong[0].name}`);
+  } else if (weak.length) {
+    els.loopSelect.value = String(weak[0].index);
+    setDeviceStatus(els.loopStatus, 'warn', `未识别到标准内录，已预选「${weak[0].name}」，建议先跑音频诊断`);
+  } else {
+    els.loopSelect.value = String(loopOrder[0].index);
+    setDeviceStatus(els.loopStatus, 'warn', '未发现内录设备，可手动选任意输入设备并用音频诊断确认');
   }
 
-  if (S.loopFound) {
-    els.loopSelect.disabled = false;
-  } else {
-    els.loopSelect.disabled = false;
-    setDeviceStatus(els.loopStatus, 'warn', '未检测到 Loopback，内录不可用');
-    els.loopSelect.value = '';
+  const micDevice = inputs.find((d) => !isStrong(d)) || inputs[0];
+  els.micSelect.value = String(micDevice.index);
+  els.micSelect.disabled = false;
+  els.loopSelect.disabled = false;
+  S.micReady = true;
+  setDeviceStatus(els.micStatus, 'ok', `就绪: ${micDevice.name}`);
+
+  els.btnRecord.disabled = false;
+  setStatusPill('idle', '就绪');
+  if (!strong.length) {
     $('loopGuide').classList.add('visible');
     $('guideToggle').classList.add('visible');
   }
+}
 
-  els.btnRecord.disabled = !S.micReady;
-  setStatusPill(S.micReady ? 'idle' : 'warn', S.micReady ? '就绪' : '请选择设备');
+function deviceName(index) {
+  if (!Number.isFinite(index) || index < 0) return null;
+  const d = S.devices.find((x) => x.index === index);
+  return d ? d.name : null;
+}
+
+// ============================================================
+// AUDIO DIAGNOSTIC
+// ============================================================
+function openAudioDiag() {
+  els.diagModal.style.display = 'flex';
+  if (!els.diagBody.dataset.loaded) runAudioDiag();
+}
+function closeAudioDiag() { els.diagModal.style.display = 'none'; }
+
+async function runAudioDiag() {
+  if (S.isRunning) {
+    els.diagResult.textContent = '请先停止录制再诊断';
+    els.diagResult.className = 'asr-test-result err';
+    return;
+  }
+  els.btnDiagRun.disabled = true;
+  els.diagBody.innerHTML = '<span class="placeholder">正在逐个打开输入流（失败设备会尝试多种配置），请稍候…</span>';
+  els.diagResult.textContent = '诊断中…';
+  els.diagResult.className = 'asr-test-result';
+  try {
+    const r = await invoke('probe_audio_devices');
+    els.diagBody.dataset.loaded = '1';
+    renderDiag(r);
+  } catch (e) {
+    els.diagBody.innerHTML = '<div class="diag-err">诊断失败: ' + escHtml(String(e)) + '</div>';
+    els.diagResult.textContent = '✗ 失败';
+    els.diagResult.className = 'asr-test-result err';
+  } finally {
+    els.btnDiagRun.disabled = false;
+  }
+}
+
+function renderDiag(r) {
+  const probes = r.probes || [];
+  const ok = probes.filter((p) => p.ok).length;
+  els.diagResult.textContent = `宿主 ${r.host} · ${ok}/${probes.length} 个设备可打开`;
+  els.diagResult.className = 'asr-test-result ' + (ok > 0 ? 'ok' : 'err');
+
+  if (!probes.length) {
+    els.diagBody.innerHTML = '<div class="diag-err">未枚举到任何输入设备。请检查系统麦克风权限与音频驱动。</div>';
+    return;
+  }
+
+  let html = `<div class="diag-summary">目标输出 <b>${r.targetSampleRate || 16000} Hz / 单声道 / f32</b>；「命中」即该设备实际可用的采集配置。</div>`;
+  for (const p of probes) {
+    const tag = p.isLoopback
+      ? '<span class="diag-tag strong">内录</span>'
+      : (p.loopbackHint ? '<span class="diag-tag weak">疑似内录</span>' : '');
+    const state = p.ok
+      ? '<span class="diag-state ok">✅ 可打开</span>'
+      : '<span class="diag-state fail">❌ 打不开</span>';
+    const detail = escHtml(p.ok ? (p.config || '') : (p.error || ''));
+    const attempts = (!p.ok && p.attempts && p.attempts.length)
+      ? `<details class="diag-attempts"><summary>查看 ${p.attempts.length} 条尝试明细</summary><pre>${escHtml(p.attempts.join('\n'))}</pre></details>`
+      : '';
+    html += `<div class="diag-item ${p.ok ? 'ok' : 'fail'}">
+      <div class="diag-item-head"><span class="diag-idx">[${p.index}]</span> ${escHtml(p.name)} ${tag} ${state}</div>
+      <div class="diag-detail">${detail}</div>
+      ${attempts}
+    </div>`;
+  }
+  html += '<div class="diag-tip">💡 若内录取不到声音，可在 Windows 命令行运行 <code>audio-probe.exe --level</code> 并播放音乐，查看该设备电平是否大于 0。</div>';
+  els.diagBody.innerHTML = html;
 }
 
 // ============================================================
@@ -293,9 +385,13 @@ async function startRecording() {
   if (S.isRunning) return;
   if (!S.micReady && !S.loopFound) { addLog('[ERROR] 请先选择音频设备', 'err'); return; }
 
+  const micIdx = parseInt(els.micSelect.value);
+  const loopIdx = els.dualToggle.checked ? parseInt(els.loopSelect.value) : -1;
   const config = {
-    micDeviceIndex: parseInt(els.micSelect.value) || -1,
-    loopbackDeviceIndex: els.dualToggle.checked ? (parseInt(els.loopSelect.value) || -1) : -1,
+    micDeviceIndex: Number.isFinite(micIdx) ? micIdx : -1,
+    loopbackDeviceIndex: Number.isFinite(loopIdx) ? loopIdx : -1,
+    micDeviceName: deviceName(micIdx),
+    loopbackDeviceName: els.dualToggle.checked ? deviceName(loopIdx) : null,
     engine: els.engineSelect.value,
     model: els.modelInput.value.trim() || 'large-v3-turbo',
     language: els.langInput.value.trim() || 'zh',
@@ -787,6 +883,12 @@ els.helpTabs.addEventListener('click', (e) => {
   renderHelp();
 });
 
+els.btnAudioDiag.addEventListener('click', openAudioDiag);
+els.btnDiagRun.addEventListener('click', runAudioDiag);
+els.btnDiagClose.addEventListener('click', closeAudioDiag);
+els.diagModalClose.addEventListener('click', closeAudioDiag);
+els.diagModal.addEventListener('click', (e) => { if (e.target === els.diagModal) closeAudioDiag(); });
+
 let panelOpen = true;
 els.panelToggleBtn.addEventListener('click', () => {
   panelOpen = !panelOpen;
@@ -803,6 +905,7 @@ document.addEventListener('keydown', (e) => {
   if (cmd && e.key === 'e') { e.preventDefault(); exportTranscript(); }
   if (e.key === 'Escape') {
     if (els.helpModal.style.display !== 'none') { closeHelp(); return; }
+    if (els.diagModal.style.display !== 'none') { closeAudioDiag(); return; }
     if (els.asrModal.style.display !== 'none') { closeAsrSettings(); return; }
     if (S.isRunning) stopRecording();
   }

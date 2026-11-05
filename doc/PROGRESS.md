@@ -351,3 +351,48 @@ buffer 余量：~20ms
 - 前端为零构建静态资源，Node.js 并非必需。
 
 **待真机验证**：沿用上节清单（三家云 Key 联调、真机打包、双路音频）。
+
+---
+
+## 2026-11-05 · 内录链路修复 + 音频诊断 + Windows 执行文件
+
+**目标**：解决「打开内录失败」，并产出可在 Windows 本机自测的执行文件。
+
+**复现方式**：沙箱无真实声卡，用 PulseAudio `module-null-sink` 造出 `vsink.monitor` 虚拟内录源，
+配置 ALSA `ctl/pcm.!default` 走 pulse 插件，让 cpal 真实枚举并开流，再用 `paplay` 播放 440Hz 音频验证采集。
+
+**确认的根因**
+
+| # | 问题 | 后果 |
+|---|---|---|
+| 1 | 前端 `loadDevices()` 用 `maxInputChannels` / `isLoopback`，后端 `AudioDevice` 输出 `channels` / `is_loopback` | 设备列表被过滤为空，界面显示「未检测到任何音频输入设备」 |
+| 2 | 内录仅靠设备名强关键词判定 | Windows WASAPI 回环（「扬声器 (…)」）、PulseAudio（pulse/default）全部漏判，直接「内录不可用」 |
+| 3 | 旧 `AudioCapture` 仅以 f32 + 16kHz/1ch + Fixed 缓冲建流，`Err(_)` 吞掉原始错误 | 真实设备只支持 I16/48kHz 时全失败，且只报笼统一句 |
+| 4 | 按 `input_devices().nth(index)` 定位 | 设备列表变化会打开错设备 |
+| 5 | 无诊断手段 | 真机失败无法自证原因 |
+
+**修复清单**
+
+| 项 | 状态 |
+|---|---|
+| `capture.rs` 多采样格式（F32/I16/U16/I32/F64）× 多配置探测（Default 缓冲优先，含 supported_input_configs） | ✅ |
+| 按设备名优先定位 + index 兜底；保留全部失败明细；记录实际设备与命中配置 | ✅ |
+| 统一混单/重采样到 16kHz 单声道 f32；重采样边界保护 + 单元测试 | ✅ |
+| `is_loopback_name`（强）/ `is_loopback_candidate`（弱）分级；`probe_devices()` 逐设备真开流诊断 | ✅ |
+| 前后端字段统一 camelCase（`channels` / `isLoopback` / `loopbackHint`） | ✅ |
+| 独立 `crates/audio-probe` 诊断 CLI（`--level` 双路并发电平、`--json`、Windows UTF-8 控制台） | ✅ |
+| Tauri `probe_audio_devices` 命令；启动日志打印实际打开设备与配置 | ✅ |
+| 前端「🔧 音频诊断」弹窗；内录下拉放开全部设备；启动传设备名 | ✅ |
+| Windows CI（诊断 exe + 桌面应用两 job）、`scripts/build-windows.bat`、`doc/本机测试与内录排错.md` | ✅ |
+
+**验证记录**
+
+| 用例 | 结果 |
+|---|---|
+| `cargo test -p moonshine-core` 8 个单测 | ✅ 全通过 |
+| 虚拟设备枚举与分类（pulse/default → 🔶疑似内录） | ✅ |
+| 逐设备多配置打开测试 | ✅ 2/2 可打开，命中 `1ch/16000Hz/Default/F32` |
+| 播放 440Hz → 双路并发采集 2 秒 | ✅ 各 23 块、峰值 0.3663「检测到声音」 |
+| `cargo check --workspace` / `clippy` / `node --check` | ✅ 通过 |
+
+**待真机验证**：Windows 立体声混音 / WASAPI 回环设备实机诊断、三家云 Key 联调、长会稳定性。

@@ -1,0 +1,95 @@
+name: Build Windows
+
+# Tauri 不支持从 Linux 交叉编译 Windows GUI 包，故在 Windows 原生 runner 构建。
+# 两个 job 并行：diagnostic（快，几分钟）先产出免安装诊断 exe；app 产出完整桌面应用。
+# 推送 main 或手动 workflow_dispatch 后，产物在 Actions → 对应运行 → Artifacts 下载。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'src-tauri/**'
+      - 'ui/**'
+      - 'python/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostic:
+    name: 音频诊断 CLI（免安装单文件）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: 构建 audio-probe.exe
+        run: cargo build -p audio-probe --release
+
+      - name: 收集产物
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/audio-probe.exe dist/audio-probe.exe
+          Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: 上传诊断 exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-probe-windows-x64
+          path: dist/audio-probe.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  app:
+    name: 桌面应用（NSIS 安装包 + 裸 exe）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: 构建诊断 CLI（一并随包提供）
+        run: cargo build -p audio-probe --release
+
+      - name: 安装 Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: 构建 Tauri 桌面应用
+        run: cargo tauri build
+
+      - name: 汇总单文件产物
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/audio-probe.exe dist/audio-probe.exe
+          if (Test-Path target/release/moonshine-meeting-assistant.exe) {
+            Copy-Item target/release/moonshine-meeting-assistant.exe dist/moonshine-meeting-assistant.exe
+          }
+          Get-ChildItem -Path target/release/bundle -Recurse -Include *.exe,*.msi -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName dist/ }
+          Write-Host '==== 产物清单 ===='
+          Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: 上传应用产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonshine-windows-x64
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 打 tag 时附加到 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

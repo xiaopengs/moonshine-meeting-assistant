@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use moonshine_core::audio::{list_input_devices, AudioCapture};
+use moonshine_core::audio::{host_name, list_input_devices, probe_devices, AudioCapture};
 use moonshine_core::diarization::{Diarizer, DualChannelDiarizer};
 use moonshine_core::engine::{
     self, EngineConfig, EngineKind, RemoteCredentials, Segment, Source,
@@ -33,6 +33,9 @@ struct AppState {
 struct StartConfig {
     mic_device_index: i32,
     loopback_device_index: i32,
+    /// 设备名优先定位，避免枚举与打开之间设备顺序变化导致 index 错位。
+    mic_device_name: Option<String>,
+    loopback_device_name: Option<String>,
     engine: String,
     model: String,
     language: String,
@@ -136,6 +139,19 @@ fn list_devices() -> Result<Vec<moonshine_core::audio::AudioDevice>, String> {
 #[tauri::command]
 fn get_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+/// 音频诊断：返回宿主、设备清单，以及逐个设备真实打开输入流的结果与原始错误。
+#[tauri::command]
+fn probe_audio_devices() -> Result<serde_json::Value, String> {
+    let devices = list_input_devices()?;
+    let probes = probe_devices()?;
+    Ok(serde_json::json!({
+        "host": host_name(),
+        "targetSampleRate": moonshine_core::audio::TARGET_SAMPLE_RATE,
+        "devices": devices,
+        "probes": probes,
+    }))
 }
 
 #[tauri::command]
@@ -421,11 +437,15 @@ fn run_transcription(
         let _ = app.emit("log", msg);
     };
 
-    // 打开采集流
+    // 打开采集流：优先按设备名定位（避免 index 漂移），失败时保留完整配置尝试记录
     let mic = if config.mic_device_index >= 0 {
         Some(
-            AudioCapture::open(config.mic_device_index as usize, CHUNK_SAMPLES)
-                .map_err(|e| e.to_string())?,
+            AudioCapture::open_prefer(
+                config.mic_device_name.as_deref(),
+                config.mic_device_index as usize,
+                CHUNK_SAMPLES,
+            )
+            .map_err(|e| format!("麦克风打开失败 → {e}"))?,
         )
     } else {
         None
@@ -433,8 +453,12 @@ fn run_transcription(
 
     let loopback = if config.dual_enabled && config.loopback_device_index >= 0 {
         Some(
-            AudioCapture::open(config.loopback_device_index as usize, CHUNK_SAMPLES)
-                .map_err(|e| e.to_string())?,
+            AudioCapture::open_prefer(
+                config.loopback_device_name.as_deref(),
+                config.loopback_device_index as usize,
+                CHUNK_SAMPLES,
+            )
+            .map_err(|e| format!("系统内录打开失败 → {e}"))?,
         )
     } else {
         None
@@ -442,6 +466,14 @@ fn run_transcription(
 
     if mic.is_none() && loopback.is_none() {
         return Err("未选择任何音频设备".to_string());
+    }
+
+    // 把实际打开的设备与命中配置写进日志，便于真机核对有没有打开错设备
+    if let Some(m) = &mic {
+        log(app, format!("麦克风已打开: {} · {}", m.device_name(), m.config_desc()));
+    }
+    if let Some(l) = &loopback {
+        log(app, format!("系统内录已打开: {} · {}", l.device_name(), l.config_desc()));
     }
 
     // 创建引擎（每个流一个独立实例，避免状态混淆）
@@ -578,6 +610,7 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             list_devices,
+            probe_audio_devices,
             get_version,
             start_transcription,
             stop_transcription,

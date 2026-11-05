@@ -57,6 +57,7 @@
 
 | 文档 | 内容 | 适合谁 |
 |---|---|---|
+| [🔧 本机测试与内录排错](doc/本机测试与内录排错.md) | 音频诊断 exe 用法、内录失败根因、Windows 启用内录、错误对照表 | **真机验证 / 排错** |
 | [☁️ 接入指导](doc/接入指导.md) | 火山 / 腾讯 / 阿里控制台开通、取 Key、字段对照、测试连接、版本差异与排错 | 使用云 ASR |
 | [🛠️ 本地编译指导](doc/本地编译指导.md) | 全平台工具链、分层编译、`cargo tauri dev/build`、常见错误排查 | 开发者 |
 | [📦 部署指导](doc/部署指导.md) | 三种部署形态、打包产物、随包资源、离线/内网、升级回滚、验收清单 | 运维 / 分发 |
@@ -65,6 +66,22 @@
 | [PRD](doc/PRD.md) · [进度](doc/PROGRESS.md) · [UI 规范](doc/UI-SPEC-v2.md) | 产品定义与过程记录 | 项目成员 |
 
 > App 内点击标题栏「📖 使用指南」可直接查看接入 / 编译 / 部署三份要点，并一键跳转完整文档。
+
+---
+
+## 🪟 Windows 执行文件（本机测试）
+
+Tauri 不支持从 Linux 交叉编译 Windows GUI 包，故提供 [Windows CI 配置](scripts/build-windows.yml)：将其复制到 `.github/workflows/build-windows.yml` 后，推送 `main` 或手动触发即自动构建，产物在 **Actions → Build Windows → 最新运行 → Artifacts** 下载：
+
+| 产物 | 说明 | Artifact |
+|---|---|---|
+| `audio-probe.exe` | **免安装音频诊断**，单文件，无 WebView2 / Python / Key 依赖 | `audio-probe-windows-x64` |
+| `*_x64-setup.exe` | 完整桌面应用 NSIS 安装包 | `moonshine-windows-x64` |
+| `moonshine-meeting-assistant.exe` | 裸 exe（云 ASR 直接可用） | 同上 |
+
+**建议先跑 `audio-probe.exe`**：它逐个真实打开输入设备，打印命中配置或原始系统错误；播放音乐时加 `--level` 可验证内录是否真有声音。完整用法与排错见 [本机测试与内录排错](doc/本机测试与内录排错.md)。
+
+本机自行构建：双击 [`scripts\build-windows.bat`](scripts/build-windows.bat)（需 Rust + Visual Studio Build Tools）。
 
 ---
 
@@ -159,28 +176,33 @@ cargo tauri build          # 按当前平台产出安装包（NSIS / DMG / AppIm
 moonshine-meeting-assistant/
 ├── Cargo.toml                  # Cargo workspace
 ├── crates/
-│   └── core/                   # moonshine-core 核心库（UI 无关）
-│       └── src/
-│           ├── audio/          # cpal 双路采集
-│           ├── engine/         # 引擎抽象 + 本地引擎 + remote/（火山/腾讯/阿里云 ASR）
-│           ├── vad.rs          # 能量 VAD
-│           ├── diarization.rs  # 说话人归属
-│           ├── summary.rs      # OpenAI 兼容摘要
-│           ├── export.rs       # MD/SRT/TXT
-│           └── session.rs      # 会话聚合
+│   ├── core/                   # moonshine-core 核心库（UI 无关）
+│   │   └── src/
+│   │       ├── audio/          # cpal 双路采集（多格式/多配置探测 + 设备诊断）
+│   │       ├── engine/         # 引擎抽象 + 本地引擎 + remote/（火山/腾讯/阿里云 ASR）
+│   │       ├── vad.rs          # 能量 VAD
+│   │       ├── diarization.rs  # 说话人归属
+│   │       ├── summary.rs      # OpenAI 兼容摘要
+│   │       ├── export.rs       # MD/SRT/TXT
+│   │       └── session.rs      # 会话聚合
+│   └── audio-probe/            # 免安装音频诊断 CLI（可单独交叉编译为 exe）
 ├── src-tauri/                  # Tauri 2 应用壳
 │   ├── src/{main.rs,lib.rs}    # 命令 + 事件 + 转录运行时
 │   ├── tauri.conf.json         # 含 bundle.resources（随包携带 Python 引擎服务）
 │   └── capabilities/
 ├── ui/                         # 前端（v2.0 设计系统，零构建）
-│   ├── index.html              # 三栏布局 + ASR 设置 / 使用指南弹窗
+│   ├── index.html              # 三栏布局 + ASR 设置 / 使用指南 / 音频诊断弹窗
 │   ├── styles.css
 │   └── main.js
 ├── python/
 │   ├── engine_service.py       # 多引擎 JSON 协议服务
 │   └── requirements.txt
+├── scripts/
+│   ├── build-windows.bat       # Windows 本机一键构建
+│   └── build-windows.yml       # Windows CI 配置（复制到 .github/workflows/ 生效）
 ├── doc/
 │   ├── ARCHITECTURE.md         # 架构设计（重构版）
+│   ├── 本机测试与内录排错.md   # 诊断 exe 用法 / 内录失败根因 / 错误对照
 │   ├── 接入指导.md             # 云 ASR 接入（BYOK）
 │   ├── 本地编译指导.md         # 全平台编译与排错
 │   ├── 部署指导.md             # 打包 / 分发 / 验收

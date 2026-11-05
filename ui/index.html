@@ -76,6 +76,7 @@
         <div class="device-status" id="loopStatus"></div>
       </div>
       <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备列表</button>
+      <button class="refresh-btn" id="btnAudioDiag" title="逐个测试输入设备能否打开，定位内录失败">🔧 音频诊断</button>
       <div class="loopback-guide" id="loopGuide">
         <strong>💡 启用 Windows 系统内录</strong>
         <ol>
@@ -314,6 +315,25 @@
       <span class="asr-test-result" id="helpHint">完整文档位于仓库 doc/ 目录</span>
       <button class="asr-btn" id="btnHelpClose">关闭</button>
       <button class="asr-btn primary" id="btnHelpDoc">查看完整文档 ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIO DIAGNOSTIC MODAL -->
+<div class="modal-backdrop" id="diagModal" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2>🔧 音频设备诊断</h2>
+      <button class="modal-close" id="diagModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">逐个真实打开输入流（不录音），列出可打开性、命中配置与原始系统错误。用于定位「打开内录失败」。诊断期间请勿录制。</p>
+      <div id="diagBody"><span class="placeholder">点击「开始诊断」运行…</span></div>
+    </div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="diagResult"></span>
+      <button class="asr-btn" id="btnDiagClose">关闭</button>
+      <button class="asr-btn primary" id="btnDiagRun">开始诊断</button>
     </div>
   </div>
 </div>
