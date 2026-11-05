@@ -38,9 +38,19 @@ pub struct ProbeOutcome {
     pub attempts: Vec<String>,
 }
 
+/// 采集后端：普通输入设备（cpal）或 Windows 系统内录（WASAPI 回环）。
+///
+/// 字段只需保活（持有底层流，Drop 时停止采集），不直接读取。
+#[allow(dead_code)]
+enum Inner {
+    Cpal(cpal::Stream),
+    #[cfg(windows)]
+    Loopback(super::loopback_win::LoopbackCapture),
+}
+
 /// 一个音频输入流的采集封装。
 pub struct AudioCapture {
-    _stream: cpal::Stream,
+    _inner: Inner,
     rx: Receiver<Vec<f32>>,
     device_name: String,
     config_desc: String,
@@ -56,6 +66,9 @@ impl AudioCapture {
     ///
     /// 优先级的意义：前端枚举设备与用户点击「开始录制」之间可能插入蓝牙耳机、
     /// 系统切换默认设备等，导致 `input_devices().nth(index)` 指向错误设备。
+    ///
+    /// **index 语义**：与 [`super::list_input_devices`] 一致——先输入设备（0..N），
+    /// 再系统内录源（N..）。落在后半段时走 WASAPI 回环（仅 Windows 支持）。
     pub fn open_prefer(
         name: Option<&str>,
         index: usize,
@@ -66,6 +79,13 @@ impl AudioCapture {
             .input_devices()
             .map_err(|e| AudioError::Host(e.to_string()))?
             .collect();
+        let input_count = devices.len();
+
+        // ---- 系统内录源：输出设备 + WASAPI LOOPBACK ----
+        if index >= input_count {
+            let out_index = index - input_count;
+            return Self::open_loopback(out_index, chunk_samples);
+        }
 
         let names: Vec<String> = devices
             .iter()
@@ -89,11 +109,44 @@ impl AudioCapture {
 
         let _ = attempts; // 成功时尝试记录仅用于诊断，不参与运行时
         Ok(Self {
-            _stream: stream,
+            _inner: Inner::Cpal(stream),
             rx,
             device_name: dev_name,
             config_desc: desc,
         })
+    }
+
+    /// 打开 Windows 系统内录（WASAPI 回环）。
+    fn open_loopback(out_index: usize, chunk_samples: usize) -> Result<Self, AudioError> {
+        #[cfg(windows)]
+        {
+            // 名称仅用于展示：由 cpal 的输出设备列表取（顺序与 WASAPI 枚举一致）
+            let dev_name = cpal::default_host()
+                .output_devices()
+                .ok()
+                .and_then(|it| it.into_iter().nth(out_index))
+                .and_then(|d| d.name().ok())
+                .unwrap_or_else(|| format!("系统声音（输出设备 #{out_index}）"));
+
+            let (tx, rx) = channel::<Vec<f32>>();
+            let cap = super::loopback_win::start(out_index, chunk_samples, tx)
+                .map_err(|e| AudioError::Stream(dev_name.clone(), e, 1))?;
+            let desc = cap.desc.clone();
+            Ok(Self {
+                _inner: Inner::Loopback(cap),
+                rx,
+                device_name: dev_name,
+                config_desc: desc,
+            })
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (out_index, chunk_samples);
+            Err(AudioError::Host(
+                "当前系统不支持 WASAPI 回环。Linux 请选择 `*.monitor` 设备，macOS 请安装 BlackHole"
+                    .to_string(),
+            ))
+        }
     }
 
     /// 实际打开的设备名（用于日志核对，确认没有打开错设备）。
@@ -365,6 +418,18 @@ fn try_format(
 
 fn summarize_attempts(failed: &[String]) -> String {
     failed.join("\n    · ")
+}
+
+/// 供 WASAPI 回环模块复用：线性重采样。
+#[cfg(windows)]
+pub(crate) fn resample_linear_pub(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+    resample_linear(input, from_rate, to_rate)
+}
+
+/// 供 WASAPI 回环模块复用：interleaved f32 → 单声道。
+#[cfg(windows)]
+pub(crate) fn to_mono_f32(data: &[f32], channels: usize) -> Vec<f32> {
+    to_mono(data, channels)
 }
 
 fn err_fn(err: cpal::StreamError) {

@@ -26,7 +26,7 @@
 
 | 能力 | 说明 |
 |---|---|
-| 🎙️ 双路采集 | 麦克风 + 系统内录并行，物理隔离区分「本端 / 远端」说话人 |
+| 🎙️ 双路采集 | 麦克风 + 系统内录并行，物理隔离区分「本端 / 远端」说话人；Windows 原生 **WASAPI 回环**，**无需启用「立体声混音」** |
 | 🧠 多引擎可插拔 | faster-whisper（中文优先，默认）/ moonshine（英文流式）/ FunASR·Paraformer（中文流式） |
 | ☁️ 云端 ASR（BYOK） | 火山引擎 / 腾讯云 / 阿里云，仅需填入 API Key，无需本地模型与 Python |
 | ⚡ 低延迟 | 160ms 音频块 + 本地推理，实时字幕无感知延迟 |
@@ -44,7 +44,7 @@
 > 图中**绿色**为本地引擎链路（音频与模型全程留在本机、零上传），**紫色**为云端 ASR 链路（BYOK，仅在显式选择时启用）。点击图片查看大图 · [SVG 源码](assets/architecture.svg)。
 
 - **桌面框架**：Tauri 2 + Rust（包体 ~10MB，内存占用低）
-- **音频采集**：`cpal`（WASAPI / CoreAudio / ALSA）
+- **音频采集**：`cpal`（输入设备）+ **WASAPI 回环**（Windows 系统内录，直接调 COM `IAudioClient` + `AUDCLNT_STREAMFLAGS_LOOPBACK`）；Linux 用 `*.monitor`，macOS 用 BlackHole
 - **转写引擎**：多引擎可插拔，默认 `faster-whisper`（中文 CER 业界领先）
 - **云端 ASR**：原生 `tokio-tungstenite` WebSocket 客户端，火山（HMAC-SHA256）/ 腾讯（HMAC-SHA1）/ 阿里（POP 签名 + CreateToken），零 Python 依赖
 - **核心库**：`moonshine-core`（UI 无关，可独立编译测试）
@@ -57,7 +57,7 @@
 
 | 文档 | 内容 | 适合谁 |
 |---|---|---|
-| [🔧 本机测试与内录排错](doc/本机测试与内录排错.md) | 音频诊断 exe 用法、内录失败根因、Windows 启用内录、错误对照表 | **真机验证 / 排错** |
+| [🔧 本机测试与内录排错](doc/本机测试与内录排错.md) | 音频诊断 exe 用法、**Windows WASAPI 回环原理**、内录失败根因与排错 | **真机验证 / 排错** |
 | [☁️ 接入指导](doc/接入指导.md) | 火山 / 腾讯 / 阿里控制台开通、取 Key、字段对照、测试连接、版本差异与排错 | 使用云 ASR |
 | [🛠️ 本地编译指导](doc/本地编译指导.md) | 全平台工具链、分层编译、`cargo tauri dev/build`、常见错误排查 | 开发者 |
 | [📦 部署指导](doc/部署指导.md) | 三种部署形态、打包产物、随包资源、离线/内网、升级回滚、验收清单 | 运维 / 分发 |
@@ -69,22 +69,45 @@
 
 ---
 
-## 🪟 Windows 执行文件（本机测试）
+## 🪟 Windows：界面怎么打开
 
-Tauri 不支持从 Linux 交叉编译 Windows GUI 包，故提供 [Windows CI 配置](scripts/build-windows.yml)：将其复制到 `.github/workflows/build-windows.yml` 后，推送 `main` 或手动触发即自动构建，产物在 **Actions → Build Windows → 最新运行 → Artifacts** 下载：
+**界面代码一直在仓库里**（`ui/index.html` + `ui/styles.css` + `ui/main.js`，三栏交互形态与 v2.0 完全一致），由 Tauri 窗口加载。看到「没有界面」通常是因为只运行了诊断工具 `audio-probe.exe`——那是**控制台程序**，不是桌面应用。
 
-| 产物 | 说明 | Artifact |
+### 方式一：一键启动（推荐，最快看到界面）
+
+双击 [`scripts\run-windows.bat`](scripts/run-windows.bat)，等价于：
+
+```bat
+cargo run -p moonshine-meeting-assistant
+```
+
+首次编译 5–15 分钟，之后增量很快。窗口弹出即三栏界面。
+
+**前置**：Rust ≥1.75 + Visual Studio Build Tools（勾「使用 C++ 的桌面开发」）+ WebView2（Win11 自带）。
+
+### 方式二：打包安装程序
+
+双击 [`scripts\build-windows.bat`](scripts/build-windows.bat)，产物在 `target\release\bundle\nsis\*.exe`。
+
+### 方式三：CI 自动构建（无需本机 Rust）
+
+把 [`scripts/build-windows.yml`](scripts/build-windows.yml) 复制到 `.github/workflows/build-windows.yml` 并推送，产物在 **Actions → Build Windows → Artifacts**。
+
+> 注意：Tauri 不支持从 Linux 交叉编译 Windows GUI 包，因此仓库不直接提供 GUI 的 `.exe` 下载，只能本机构建或走 CI。
+
+### 只想先看界面长什么样？
+
+双击 [`doc/界面预览.html`](doc/界面预览.html)（单文件，85 KB）：用浏览器打开即可看到**完整三栏交互**——设备列表、云 ASR 设置、音频诊断、使用指南全都在，数据为模拟。它不录音，仅用于确认交互形态；改完 `ui/` 后可用 `python3 scripts/build-ui-preview.py` 重新生成。
+
+---
+
+## 🔧 音频诊断执行文件
+
+| 产物 | 说明 | 获取 |
 |---|---|---|
-| `audio-probe-windows-x64.exe` | **免安装音频诊断**，单文件，无 WebView2 / Python / Key 依赖 | ✅ [已构建，直接下载](https://github.com/xiaopengs/moonshine-meeting-assistant/releases/tag/tools-v2.0.0) |
-| `*_x64-setup.exe` | 完整桌面应用 NSIS 安装包 | `moonshine-windows-x64`（需自行构建 / CI） |
-| `moonshine-meeting-assistant.exe` | 裸 exe（云 ASR 直接可用） | 同上 |
+| `audio-probe-windows-x64.exe` | **免安装音频诊断**，单文件（577 KB），无 WebView2 / Python / Key 依赖 | ✅ [Releases 直接下载](https://github.com/xiaopengs/moonshine-meeting-assistant/releases/tag/tools-v2.0.0) |
 
-> **诊断 exe 已直接构建并发布到 [Releases/tools-v2.0.0](https://github.com/xiaopengs/moonshine-meeting-assistant/releases/tag/tools-v2.0.0)**（PE32+ 原生、539 KB、仅依赖系统 DLL，双击即用）。
-> 桌面 GUI 应用因 Tauri 不支持 Linux→Windows 交叉编译，需通过下方本机脚本或 CI 构建。
-
-**建议先跑 `audio-probe.exe`**：它逐个真实打开输入设备，打印命中配置或原始系统错误；播放音乐时加 `--level` 可验证内录是否真有声音。完整用法与排错见 [本机测试与内录排错](doc/本机测试与内录排错.md)。
-
-本机自行构建：双击 [`scripts\build-windows.bat`](scripts/build-windows.bat)（需 Rust + Visual Studio Build Tools）。
+**先跑诊断**：它逐个真实打开采集源（含 Windows 输出设备的 WASAPI 回环），打印命中配置或原始系统错误；播放音乐时加 `--level` 可验证内录是否真有声音。完整用法见 [本机测试与内录排错](doc/本机测试与内录排错.md)。
 
 ---
 

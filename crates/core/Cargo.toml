@@ -6,6 +6,14 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# Windows WASAPI 回环采集（cpal 不支持 loopback，必须直接调 COM）
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+] }
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

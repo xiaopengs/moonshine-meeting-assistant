@@ -4,10 +4,24 @@
 
 mod capture;
 
+/// Windows 系统内录（WASAPI 回环）——cpal 不支持 loopback，必须直接调 COM。
+#[cfg(windows)]
+pub(crate) mod loopback_win;
+
 pub use capture::{AudioCapture, ProbeOutcome, TARGET_SAMPLE_RATE};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::Serialize;
+
+/// 设备类型：普通输入设备 / 系统内录源。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeviceKind {
+    /// 麦克风等真实输入设备（cpal capture endpoint）。
+    Input,
+    /// 系统声音（Windows 输出设备 + WASAPI LOOPBACK）。
+    Loopback,
+}
 
 /// 音频输入设备描述。
 #[derive(Debug, Clone, Serialize)]
@@ -21,6 +35,8 @@ pub struct AudioDevice {
     pub is_loopback: bool,
     /// 疑似内录设备（弱关键词命中，仅用于 UI 排序与提示，不做硬性过滤）。
     pub loopback_hint: bool,
+    /// 设备类型（`input` / `loopback`）。
+    pub kind: DeviceKind,
 }
 
 /// 单个设备的诊断结果。
@@ -31,6 +47,8 @@ pub struct DeviceProbe {
     pub name: String,
     pub is_loopback: bool,
     pub loopback_hint: bool,
+    /// 设备类型（`input` / `loopback`）。
+    pub kind: DeviceKind,
     /// 是否成功打开输入流。
     pub ok: bool,
     /// 命中的配置描述（成功时）。
@@ -46,15 +64,20 @@ pub fn host_name() -> String {
     format!("{:?}", cpal::default_host().id())
 }
 
-/// 枚举所有输入设备（麦克风 + 系统内录）。
+/// 枚举所有可用采集源：输入设备（麦克风）+ 系统内录源。
+///
+/// **Windows 关键差异**：系统声音不是输入设备，必须把**输出设备**（render endpoint）
+/// 也列为可选项，运行时用 WASAPI `AUDCLNT_STREAMFLAGS_LOOPBACK` 采集。
+/// 否则用户在设备列表里永远看不到内录源（这也是此前「打开内录失败」的根因）。
 pub fn list_input_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
-    let devices = host
+    let devices: Vec<cpal::Device> = host
         .input_devices()
-        .map_err(|e| format!("无法枚举输入设备: {e}"))?;
+        .map_err(|e| format!("无法枚举输入设备: {e}"))?
+        .collect();
 
-    let mut out = Vec::new();
-    for (index, device) in devices.enumerate() {
+    let mut out = Vec::with_capacity(devices.len() + 4);
+    for (index, device) in devices.iter().enumerate() {
         let name = device.name().unwrap_or_else(|_| format!("音频设备 {index}"));
         let (channels, default_rate) = device
             .default_input_config()
@@ -67,8 +90,36 @@ pub fn list_input_devices() -> Result<Vec<AudioDevice>, String> {
             name,
             channels,
             default_rate,
+            kind: DeviceKind::Input,
         });
     }
+
+    // Windows：把输出设备追加为「系统声音」采集源
+    #[cfg(windows)]
+    {
+        let base = out.len();
+        if let Ok(outs) = host.output_devices() {
+            for (i, device) in outs.enumerate() {
+                let name = device
+                    .name()
+                    .unwrap_or_else(|_| format!("输出设备 {i}"));
+                let (channels, default_rate) = device
+                    .default_output_config()
+                    .map(|c| (c.channels(), c.sample_rate().0))
+                    .unwrap_or((0, 0));
+                out.push(AudioDevice {
+                    index: base + i,
+                    name: format!("{name}（系统声音）"),
+                    channels,
+                    default_rate,
+                    is_loopback: true,
+                    loopback_hint: true,
+                    kind: DeviceKind::Loopback,
+                });
+            }
+        }
+    }
+
     Ok(out)
 }
 
@@ -83,7 +134,7 @@ pub fn probe_devices() -> Result<Vec<DeviceProbe>, String> {
         .map_err(|e| format!("无法枚举输入设备: {e}"))?
         .collect();
 
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(devices.len() + 4);
     for (index, device) in devices.iter().enumerate() {
         let name = device.name().unwrap_or_else(|_| format!("音频设备 {index}"));
         let result = capture::probe_open(device, 2560);
@@ -92,6 +143,7 @@ pub fn probe_devices() -> Result<Vec<DeviceProbe>, String> {
             is_loopback: is_loopback_name(&name),
             loopback_hint: is_loopback_candidate(&name),
             name,
+            kind: DeviceKind::Input,
             ok: result.ok,
             config: result.config,
             error: if result.ok {
@@ -106,6 +158,30 @@ pub fn probe_devices() -> Result<Vec<DeviceProbe>, String> {
             attempts: result.attempts,
         });
     }
+
+    // Windows：诊断每个输出设备的 WASAPI 回环可用性
+    #[cfg(windows)]
+    {
+        let base = out.len();
+        if let Ok(outs) = host.output_devices() {
+            for (i, device) in outs.enumerate() {
+                let name = device.name().unwrap_or_else(|_| format!("输出设备 {i}"));
+                let probe = loopback_win::probe(i);
+                out.push(DeviceProbe {
+                    index: base + i,
+                    name: format!("{name}（系统声音）"),
+                    is_loopback: true,
+                    loopback_hint: true,
+                    kind: DeviceKind::Loopback,
+                    ok: probe.is_ok(),
+                    config: probe.as_ref().ok().cloned(),
+                    error: probe.err(),
+                    attempts: Vec::new(),
+                });
+            }
+        }
+    }
+
     Ok(out)
 }
 

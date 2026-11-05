@@ -396,3 +396,32 @@ buffer 余量：~20ms
 | `cargo check --workspace` / `clippy` / `node --check` | ✅ 通过 |
 
 **待真机验证**：Windows 立体声混音 / WASAPI 回环设备实机诊断、三家云 Key 联调、长会稳定性。
+
+---
+
+## 2026-11-05（二）· Windows WASAPI 回环：彻底解决「没有内录设备」
+
+**真机反馈**：Windows 上诊断只列出 2 个麦克风，无任何内录/回环设备。
+
+**根因（架构级）**：`list_input_devices()` 只枚举 `cpal` 的 **输入设备**。而 Windows 的系统声音
+**不是输入设备**——它必须以**输出设备（render endpoint）**为对象，在
+`IAudioClient::Initialize` 时带 `AUDCLNT_STREAMFLAGS_LOOPBACK` 才能采集。
+cpal 未暴露该能力，因此 Windows 上永远不可能列出内录源（靠设备名关键词判定也无效）。
+
+**修复**
+
+| 项 | 实现 |
+|---|---|
+| `crates/core/src/audio/loopback_win.rs` | 直接用 `windows` crate 调 COM：`IMMDeviceEnumerator` → `eRender` 输出设备 → `IAudioClient` 共享模式 + LOOPBACK → `IAudioCaptureClient` 轮询 `GetNextPacketSize` |
+| 格式处理 | 读设备 mix format（f32/i16/i24-in-32/24-bit packed），静音包补零，混单 + 线性重采样到 16kHz 单声道 f32 |
+| 设备枚举 | Windows 下把**输出设备**追加为 `（系统声音）`，`kind = loopback`，index 接在输入设备之后 |
+| 采集分派 | `AudioCapture::open_prefer` 按 index 落在输入区间/输出区间分派 cpal 或 WASAPI 回环 |
+| 诊断 | `probe_devices()` 对每个输出设备执行回环 `Initialize` 验证并回显格式；诊断 CLI 标签改为 `[系统内录]` |
+| 稳定性 | 启动阶段用 ready 通道同步回报错误（6s 超时）；Drop 时置停止位并 join 线程；无播放时 8ms 轮询等待 |
+
+**验证**：`cargo check`（Linux）+ `cargo check --target x86_64-pc-windows-gnu`（真编译 Windows COM 代码）均通过，
+`cargo build -p audio-probe --release --target x86_64-pc-windows-gnu` 产出 577 KB PE32+，仅依赖系统 DLL。
+
+**界面澄清**：GUI 代码在 `ui/`（三栏 v2.0 交互未改），由 Tauri 窗口加载；
+`audio-probe.exe` 是控制台诊断工具，不是桌面应用。新增 `scripts/run-windows.bat` 一键起界面，
+以及 `doc/界面预览.html`（单文件、浏览器直接打开即可看完整交互）。

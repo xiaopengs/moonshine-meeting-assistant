@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Moonshine 会议助手</title>
+<style>
+/* Moonshine 会议助手 — v2.0 设计系统 */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:#09090e;color:#ededf0;
+  font-family:'Inter','Noto Sans SC',-apple-system,sans-serif;
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+select,input{font-family:inherit}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#26263a;border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:#363650}
+
+/* ===== DESIGN TOKENS ===== */
+:root{
+--bg-base:#09090e;--bg-surface:#111118;--bg-elevated:#18181f;
+--bg-input:#1c1c26;--bg-hover:#20202c;
+--border-subtle:#1c1c28;--border:#26263a;--border-strong:#363650;
+--accent:#7c6af5;--accent-hover:#9585f8;
+--accent-dim:rgba(124,106,245,0.12);--accent-dim2:rgba(124,106,245,0.07);
+--recording:#f25757;--recording-dim:rgba(242,87,87,0.12);
+--success:#34d399;--success-dim:rgba(52,211,153,0.12);
+--warning:#f5a623;--warning-dim:rgba(245,166,35,0.12);
+--info:#60a5fa;--info-dim:rgba(96,165,250,0.12);
+--text-primary:#ededf0;--text-secondary:#9092a8;
+--text-muted:#555770;--text-disabled:#38384a;
+--font-ui:'Inter','Noto Sans SC',-apple-system,sans-serif;
+--font-mono:'JetBrains Mono','Fira Code',monospace;
+--sp1:4px;--sp2:8px;--sp3:12px;--sp4:16px;--sp5:20px;--sp6:24px;--sp8:32px;--sp10:40px;--sp12:48px;
+--r-sm:4px;--r:8px;--r-lg:12px;--r-xl:20px;--r-full:9999px;
+--ease-out:cubic-bezier(0.16,1,0.3,1);
+--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+--ease-in-out:cubic-bezier(0.4,0,0.2,1);
+--titlebar-h:40px;--sidebar-w:264px;--panel-w:280px;
+}
+
+/* ===== TITLEBAR ===== */
+.titlebar{
+  height:var(--titlebar-h);background:var(--bg-surface);
+  border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;padding:0 var(--sp4);gap:var(--sp3);
+  flex-shrink:0;position:relative;-webkit-app-region:drag}
+.titlebar-brand{display:flex;align-items:center;gap:var(--sp2);-webkit-app-region:no-drag}
+.titlebar-logo{
+  width:22px;height:22px;background:var(--accent);
+  border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0}
+.titlebar-name{font-size:13px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+.titlebar-version{
+  font-size:10px;color:#555770;
+  background:var(--bg-elevated);border:1px solid var(--border-subtle);
+  padding:1px 6px;border-radius:var(--r-full)}
+.titlebar-spacer{flex:1;-webkit-app-region:drag}
+.titlebar-right{display:flex;align-items:center;gap:var(--sp3);-webkit-app-region:no-drag}
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg-elevated);border:1px solid var(--border-subtle);
+  border-radius:var(--r-full);padding:3px 10px 3px 7px;
+  font-size:11px;color:var(--text-secondary);transition:all 0.2s var(--ease-out)}
+.status-pill .dot{width:7px;height:7px;border-radius:50%;background:#555770;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.status-pill.idle .dot{background:var(--success)}
+.status-pill.running{border-color:rgba(242,87,87,0.25)}
+.status-pill.running .dot{background:var(--recording);box-shadow:0 0 6px var(--recording);animation:dpulse 2s ease-in-out infinite}
+.status-pill.loading .dot{background:var(--warning);animation:dblink 0.8s ease-in-out infinite}
+.status-pill.error{border-color:rgba(242,87,87,0.25)}
+.status-pill.error{color:var(--recording)}
+@keyframes dpulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes dblink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ===== LAYOUT ===== */
+.app-body{display:flex;flex:1;overflow:hidden;height:calc(100vh - var(--titlebar-h))}
+
+/* ===== SIDEBAR ===== */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--bg-surface);border-right:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+
+.panel{padding:var(--sp4);border-bottom:1px solid var(--border-subtle)}
+.panel:last-child{border-bottom:none}
+.panel-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#555770;margin-bottom:var(--sp3);
+  display:flex;align-items:center;gap:var(--sp2)}
+.panel-label .icon{font-style:normal;text-transform:none;letter-spacing:0}
+
+.field{margin-bottom:var(--sp3)}
+.field:last-child{margin-bottom:0}
+.field-label{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:var(--sp1)}
+.select-wrap{position:relative}
+.select-wrap::after{
+  content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  color:#555770;pointer-events:none;font-size:11px}
+select{
+  width:100%;background:var(--bg-input);border:1px solid var(--border);
+  color:var(--text-primary);border-radius:var(--r);
+  padding:7px 28px 7px 10px;font-size:12px;
+  outline:none;appearance:none;-webkit-appearance:none;
+  cursor:pointer;transition:border-color .15s,box-shadow .15s}
+select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+select:disabled{opacity:.4;cursor:not-allowed}
+select option{background:var(--bg-elevated)}
+.text-input{
+  width:100%;background:var(--bg-input);border:1px solid var(--border);
+  color:var(--text-primary);border-radius:var(--r);
+  padding:7px 10px;font-size:12px;outline:none;
+  transition:border-color .15s,box-shadow .15s}
+.text-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.text-input:disabled{opacity:.4;cursor:not-allowed}
+
+.device-status{font-size:10px;margin-top:5px;display:flex;align-items:center;gap:4px;min-height:14px;color:#555770}
+.device-status .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.device-status.ok{color:var(--success)}
+.device-status.ok .dot{background:var(--success)}
+.device-status.warn{color:var(--warning)}
+.device-status.warn .dot{background:var(--warning)}
+.device-status.err{color:var(--recording)}
+.device-status.err .dot{background:var(--recording)}
+
+.refresh-btn{
+  width:100%;margin-top:var(--sp2);padding:5px 0;
+  background:none;border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text-secondary);font-size:11px;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:var(--sp1)}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.refresh-btn:disabled{opacity:.35;cursor:not-allowed}
+
+.loopback-guide{
+  background:var(--accent-dim2);border:1px solid rgba(124,106,245,.15);
+  border-radius:var(--r);padding:var(--sp3);margin-top:var(--sp2);
+  font-size:11px;color:var(--text-secondary);line-height:1.6;display:none}
+.loopback-guide.visible{display:block}
+.loopback-guide strong{color:var(--accent);display:block;margin-bottom:4px;font-size:11px}
+.loopback-guide ol{margin:4px 0 0 14px;padding:0}
+.loopback-guide li{margin-bottom:2px}
+.loopback-guide li span{color:var(--accent)}
+.guide-toggle{
+  font-size:10px;color:var(--accent);background:none;border:none;
+  padding:3px 0;cursor:pointer;text-decoration:underline;display:none;margin-top:var(--sp1)}
+.guide-toggle.visible{display:block}
+
+/* Waveform */
+.waveform-wrap{
+  background:var(--bg-input);border:1px solid var(--border);
+  border-radius:var(--r);padding:var(--sp2);
+  margin-bottom:var(--sp3);position:relative;overflow:hidden;height:60px;
+  display:flex;align-items:center}
+#waveformCanvas{width:100%;height:44px}
+.waveform-idle{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  transition:opacity .3s}
+.waveform-idle.hidden{display:none}
+.waveform-idle .bar{width:3px;border-radius:2px;background:var(--border-strong);animation:idleBar 1.4s ease-in-out infinite}
+.waveform-idle .bar:nth-child(1){height:8px;animation-delay:0s}
+.waveform-idle .bar:nth-child(2){height:16px;animation-delay:.1s}
+.waveform-idle .bar:nth-child(3){height:24px;animation-delay:.2s}
+.waveform-idle .bar:nth-child(4){height:16px;animation-delay:.3s}
+.waveform-idle .bar:nth-child(5){height:8px;animation-delay:.4s}
+@keyframes idleBar{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.4)}}
+.vad-label{position:absolute;top:5px;left:8px;font-size:9px;color:#555770;display:flex;align-items:center;gap:3px;transition:color .2s}
+.vad-label.speaking{color:var(--success)}
+.vad-label.speaking .vad-dot{background:var(--success);box-shadow:0 0 5px var(--success)}
+.vad-dot{width:5px;height:5px;border-radius:50%;background:#555770;transition:background .1s,box-shadow .1s}
+.waveform-label{position:absolute;bottom:5px;right:8px;font-size:9px;color:#555770;font-family:var(--font-mono)}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp2)}
+.stat-card{
+  background:var(--bg-input);border:1px solid var(--border-subtle);
+  border-radius:var(--r);padding:var(--sp2) var(--sp3);
+  transition:border-color .15s}
+.stat-card:hover{border-color:var(--border)}
+.stat-label{font-size:10px;color:#555770;margin-bottom:2px}
+.stat-value{font-size:17px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.stat-value.green{color:var(--success)}
+.stat-value.blue{color:var(--info)}
+.stat-value.orange{color:var(--warning)}
+
+/* Toggles */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp2)}
+.toggle-row:last-child{margin-bottom:0}
+.toggle-info{flex:1}
+.toggle-name{font-size:12px;font-weight:500;color:var(--text-primary)}
+.toggle-desc{font-size:10px;color:#555770;margin-top:1px}
+.toggle{position:relative;width:32px;height:18px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--border-strong);border-radius:var(--r-full);transition:background .2s var(--ease-out);cursor:pointer}
+.toggle-slider::before{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:white;left:3px;top:3px;transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.toggle input:checked+.toggle-slider{background:var(--accent)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(14px)}
+.toggle input:disabled+.toggle-slider{opacity:.35;cursor:not-allowed}
+
+/* Control area */
+.ctrl-area{padding:var(--sp4);margin-top:auto}
+.record-btn{
+  width:100%;height:52px;border-radius:var(--r-lg);
+  font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:var(--sp2);
+  transition:all .2s var(--ease-out);position:relative;overflow:hidden}
+.record-btn.start{background:var(--success);color:white}
+.record-btn.start:hover{background:#2ec489;transform:scale(1.01)}
+.record-btn.start:active{transform:scale(.99)}
+.record-btn.stop{background:var(--recording);color:white}
+.record-btn.stop:hover{background:#e04848}
+.record-btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important}
+.record-btn .pulse-ring{position:absolute;inset:-4px;border-radius:calc(var(--r-lg) + 4px);border:2px solid var(--recording);opacity:0;pointer-events:none}
+.record-btn.stop .pulse-ring{animation:pulseRing 2s ease-out infinite}
+@keyframes pulseRing{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
+
+.export-row{display:flex;gap:var(--sp2);margin-top:var(--sp2)}
+.export-select{flex:1}
+.export-select select{padding:6px 8px;font-size:11px;background:var(--bg-elevated)}
+.export-btn{
+  flex:1;padding:6px var(--sp3);
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text-secondary);
+  font-size:11px;font-weight:500;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:4px}
+.export-btn:hover{border-color:var(--accent);color:var(--accent)}
+.export-btn:disabled{opacity:.3;cursor:not-allowed}
+
+.shortcut-hint{text-align:center;font-size:10px;color:#555770;margin-top:var(--sp2)}
+.shortcut-hint kbd{font-family:var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px;font-size:9px}
+
+/* ===== CENTER ===== */
+.center{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-base)}
+.transcript-header{
+  padding:10px var(--sp5);border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;gap:var(--sp3);flex-shrink:0;background:var(--bg-surface)}
+.transcript-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.transcript-badge{font-size:10px;padding:1px 7px;border-radius:var(--r-full);background:var(--accent-dim);color:var(--accent);font-weight:500}
+.transcript-meta{margin-left:auto;display:flex;align-items:center;gap:var(--sp3)}
+.transcript-time{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.transcript-clear{font-size:11px;color:#555770;padding:2px 8px;border-radius:var(--r-sm);border:1px solid transparent;transition:all .15s}
+.transcript-clear:hover{color:var(--recording);border-color:rgba(242,87,87,.2)}
+
+#transcriptLog{flex:1;overflow-y:auto;padding:var(--sp4) var(--sp5);display:flex;flex-direction:column;gap:var(--sp2)}
+
+.t-card{
+  background:var(--bg-surface);border:1px solid var(--border-subtle);
+  border-radius:var(--r-lg);padding:var(--sp3) var(--sp4);
+  display:flex;gap:var(--sp3);animation:cardIn .22s var(--ease-out) both;
+  transition:border-color .15s,box-shadow .15s}
+.t-card:hover{border-color:var(--border);box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.t-card.latest{border-left:2px solid var(--accent)}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.t-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.t-icon.mic{background:var(--success-dim)}
+.t-icon.loop{background:var(--info-dim)}
+.t-icon.sys{background:var(--warning-dim)}
+.t-body{flex:1;min-width:0}
+.t-meta{display:flex;align-items:center;gap:var(--sp2);margin-bottom:4px}
+.t-src{font-size:10px;font-weight:600;letter-spacing:.04em}
+.t-src.mic{color:var(--success)}
+.t-src.loop{color:var(--info)}
+.t-src.sys{color:var(--warning)}
+.t-time{font-family:var(--font-mono);font-size:10px;color:#555770}
+.t-text{font-size:14px;line-height:1.7;color:var(--text-primary);word-break:break-word}
+
+/* Empty state */
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp4);text-align:center;padding:var(--sp8)}
+.empty-illustration{width:80px;height:80px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-xl);display:flex;align-items:center;justify-content:center;animation:floatIcon 3s ease-in-out infinite}
+@keyframes floatIcon{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.empty-illustration .icon{font-size:36px;opacity:.5}
+.empty-title{font-size:15px;font-weight:600;color:var(--text-primary)}
+.empty-desc{font-size:12px;color:var(--text-secondary);max-width:280px;line-height:1.6}
+.empty-hint{font-size:11px;color:#555770;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--r);padding:var(--sp2) var(--sp4)}
+.empty-hint kbd{font-family:var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;color:var(--accent)}
+
+/* ===== RIGHT PANEL ===== */
+.ai-panel{
+  width:var(--panel-w);flex-shrink:0;
+  background:var(--bg-surface);border-left:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:width .25s var(--ease-out),opacity .25s}
+.ai-panel.collapsed{width:0;opacity:0;overflow:hidden}
+.ai-header{padding:var(--sp4);border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:var(--sp2);flex-shrink:0}
+.ai-header-icon{width:24px;height:24px;background:var(--accent-dim);border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:12px}
+.ai-header-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.ai-header-badge{margin-left:auto;font-size:9px;padding:1px 6px;background:var(--accent-dim);color:var(--accent);border-radius:var(--r-full);font-weight:600;letter-spacing:.05em}
+.ai-body{flex:1;overflow-y:auto;padding:var(--sp4);display:flex;flex-direction:column;gap:var(--sp4)}
+.ai-section-title{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#555770;margin-bottom:var(--sp2);display:flex;align-items:center;gap:var(--sp2)}
+
+.summary-card{
+  background:var(--bg-input);border:1px solid var(--border-subtle);
+  border-radius:var(--r);padding:var(--sp3);
+  font-size:12px;line-height:1.7;color:var(--text-secondary);min-height:60px;
+  white-space:pre-wrap}
+.summary-card .placeholder{color:#555770;font-style:italic}
+.summarize-btn{
+  width:100%;margin-top:var(--sp2);padding:7px 0;
+  background:var(--accent-dim);border:1px solid rgba(124,106,245,.2);
+  border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:500;
+  transition:all .15s}
+.summarize-btn:hover{background:rgba(124,106,245,.2)}
+.summarize-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.kw-tags{display:flex;flex-wrap:wrap;gap:var(--sp1)}
+.kw-tag{font-size:10px;padding:2px 8px;background:var(--accent-dim2);color:var(--accent);border:1px solid rgba(124,106,245,.15);border-radius:var(--r-full);font-weight:500}
+
+.ratio-chart{display:flex;align-items:center;gap:var(--sp3)}
+.ratio-bar-wrap{flex:1;height:6px;background:var(--bg-elevated);border-radius:var(--r-full);overflow:hidden;display:flex}
+.ratio-seg{height:100%;transition:width .5s var(--ease-out)}
+.ratio-seg.mic{background:var(--success)}
+.ratio-seg.loop{background:var(--info)}
+.ratio-legend{display:flex;flex-direction:column;gap:3px}
+.ratio-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#555770}
+.ratio-legend-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ratio-legend-item .dot.mic{background:var(--success)}
+.ratio-legend-item .dot.loop{background:var(--info)}
+
+.speed-row{display:flex;justify-content:space-between;align-items:center}
+.speed-val{font-size:18px;font-weight:700;color:var(--text-primary)}
+.speed-unit{font-size:10px;color:#555770;margin-left:2px}
+.speed-bar{margin-top:5px;height:4px;background:var(--bg-elevated);border-radius:var(--r-full);overflow:hidden}
+.speed-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--info));border-radius:var(--r-full);transition:width .5s var(--ease-out)}
+
+.panel-toggle-btn{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:18px;height:48px;background:var(--bg-elevated);
+  border:1px solid var(--border);border-right:none;
+  border-radius:var(--r) 0 0 var(--r);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:11px;color:#555770;transition:all .15s;z-index:10}
+.panel-toggle-btn:hover{color:var(--accent);background:var(--accent-dim)}
+
+/* ===== ENVIRONMENT ALERT ===== */
+#envAlert{
+  margin:var(--sp4);margin-top:0;
+  background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);
+  border-radius:var(--r);padding:var(--sp3);font-size:11px;
+  color:var(--warning);line-height:1.5;display:none}
+#envAlert.visible{display:block}
+
+/* ===== LOG PANEL ===== */
+#logPanel{
+  border-top:1px solid var(--border-subtle);background:#080b10;
+  max-height:80px;overflow-y:auto;flex-shrink:0;display:none}
+#logPanel.visible{display:block}
+#logContent{padding:6px var(--sp4);font-family:var(--font-mono);font-size:11px;color:#7ee787;line-height:1.75}
+.log-err{color:#f85149}
+.log-warn{color:#d29922}
+.log-info{color:#555770}
+
+/* ===== CLOUD ASR SETTINGS ===== */
+.asr-settings-btn{
+  margin-top:var(--sp2);width:100%;
+  padding:8px;border-radius:var(--r);border:1px dashed var(--border-strong);
+  background:var(--accent-dim2);color:var(--accent);font-size:12px;font-weight:500;
+  transition:all .15s var(--ease-out)}
+.asr-settings-btn:hover{background:var(--accent-dim);border-color:var(--accent)}
+
+/* Modal */
+.modal-backdrop{
+  position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+.modal{
+  width:420px;max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);
+  background:var(--bg-elevated);border:1px solid var(--border-strong);
+  border-radius:var(--r-lg);overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);animation:modalIn .2s var(--ease-out)}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:var(--sp4) var(--sp5);border-bottom:1px solid var(--border-subtle)}
+.modal-head h2{font-size:15px;font-weight:600;color:var(--text-primary)}
+.modal-close{width:28px;height:28px;border-radius:var(--r-sm);color:var(--text-muted);font-size:14px;transition:all .15s}
+.modal-close:hover{background:var(--bg-hover);color:var(--text-primary)}
+.modal-body{padding:var(--sp5);overflow-y:auto}
+.modal-hint{font-size:12px;color:var(--text-secondary);margin-bottom:var(--sp4)}
+.modal-foot{display:flex;align-items:center;gap:var(--sp2);padding:var(--sp4) var(--sp5);border-top:1px solid var(--border-subtle)}
+
+.asr-provider-list{display:flex;flex-direction:column;gap:var(--sp2);margin-bottom:var(--sp4)}
+.asr-provider-option{
+  display:flex;align-items:center;gap:var(--sp2);padding:10px var(--sp3);
+  border:1px solid var(--border);border-radius:var(--r);cursor:pointer;
+  font-size:13px;color:var(--text-primary);transition:all .15s}
+.asr-provider-option:hover{background:var(--bg-hover)}
+.asr-provider-option.selected{border-color:var(--accent);background:var(--accent-dim2)}
+.asr-provider-option input{accent-color:var(--accent)}
+
+.asr-section-title{font-size:12px;font-weight:600;color:var(--text-secondary);margin:var(--sp3) 0 var(--sp2)}
+.asr-field{display:flex;flex-direction:column;gap:4px;margin-bottom:var(--sp3)}
+.asr-field-label{font-size:11px;color:var(--text-muted)}
+.asr-field input,.asr-field select{
+  background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:8px 10px;color:var(--text-primary);font-size:12px;outline:none;transition:border .15s}
+.asr-field input:focus,.asr-field select:focus{border-color:var(--accent)}
+.asr-help{font-size:11px;color:var(--text-muted);margin-top:var(--sp2);line-height:1.5}
+.asr-help a{color:var(--accent);text-decoration:none}
+
+.asr-btn{padding:8px 16px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:12px;font-weight:500;transition:all .15s}
+.asr-btn:hover{background:var(--bg-hover)}
+.asr-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.asr-btn.primary:hover{background:var(--accent-hover)}
+.asr-btn:disabled{opacity:.5;cursor:not-allowed}
+.asr-test-result{flex:1;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asr-test-result.ok{color:var(--success)}
+.asr-test-result.err{color:var(--recording)}
+
+/* ===== HELP / GUIDES ===== */
+.titlebar-help{
+  padding:5px 10px;margin-right:var(--sp2);border-radius:var(--r-sm);
+  border:1px solid var(--border);background:var(--bg-input);
+  color:var(--text-secondary);font-size:11.5px;transition:all .15s var(--ease-out)}
+.titlebar-help:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-dim2)}
+
+.help-link-btn{
+  width:100%;margin-top:var(--sp2);padding:7px;border-radius:var(--r);
+  border:1px dashed var(--border-strong);background:transparent;
+  color:var(--text-muted);font-size:11.5px;transition:all .15s}
+.help-link-btn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-dim2)}
+
+.modal.modal-wide{width:600px}
+.help-tabs{display:flex;gap:var(--sp1);padding:0 var(--sp5);border-bottom:1px solid var(--border-subtle)}
+.help-tab{
+  padding:10px 14px;font-size:12px;font-weight:500;color:var(--text-muted);
+  border-bottom:2px solid transparent;transition:all .15s}
+.help-tab:hover{color:var(--text-secondary)}
+.help-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.help-body{max-height:calc(100vh - 220px)}
+
+.help-lead{font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:var(--sp4)}
+.help-lead b{color:var(--text-primary);font-weight:600}
+.help-steps{display:flex;flex-direction:column;gap:var(--sp3);margin-bottom:var(--sp4)}
+.help-step{display:flex;gap:var(--sp3);align-items:flex-start}
+.help-step-num{
+  flex:0 0 20px;height:20px;border-radius:var(--r-full);
+  background:var(--accent-dim);color:var(--accent);
+  font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.help-step-title{font-size:12.5px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+.help-step-desc{font-size:11.5px;color:var(--text-secondary);line-height:1.65}
+.help-step-desc code{
+  font-family:var(--font-mono);font-size:11px;color:var(--accent);
+  background:var(--accent-dim2);padding:1px 4px;border-radius:3px}
+.help-code-label{font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px}
+.help-code{
+  font-family:var(--font-mono);font-size:11px;line-height:1.65;color:#a5b4fc;
+  background:#0d0d14;border:1px solid var(--border);border-radius:var(--r);
+  padding:var(--sp3);white-space:pre-wrap;word-break:break-all;margin-bottom:var(--sp4);
+  user-select:text}
+.help-section-title{font-size:11.5px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.help-tips{padding-left:18px;margin-bottom:var(--sp2)}
+.help-tips li{font-size:11.5px;color:var(--text-muted);line-height:1.7}
+
+/* ===== ASR 取 Key 指引 ===== */
+.asr-guide-box{
+  margin:0 0 var(--sp3);padding:var(--sp3);border-radius:var(--r);
+  background:var(--accent-dim2);border:1px solid var(--border)}
+.asr-guide-title{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:5px}
+.asr-guide-box p{font-size:11.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:var(--sp2)}
+.asr-guide-links{display:flex;flex-wrap:wrap;gap:6px}
+.link-btn{
+  padding:5px 9px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
+  background:var(--bg-input);color:var(--text-secondary);font-size:11px;transition:all .15s}
+.link-btn:hover{color:var(--accent);border-color:var(--accent)}
+.asr-help a{color:var(--accent);text-decoration:none}
+.asr-help a:hover{text-decoration:underline}
+
+/* ===== AUDIO DIAGNOSTIC ===== */
+#btnAudioDiag{margin-top:6px;border-style:dashed;color:var(--accent)}
+.diag-summary{font-size:12px;color:var(--text-secondary);margin-bottom:var(--sp3);padding:8px 10px;background:var(--bg-input);border-radius:var(--r-sm)}
+.diag-item{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;background:var(--bg-input)}
+.diag-item.ok{border-left:3px solid var(--success)}
+.diag-item.fail{border-left:3px solid var(--recording)}
+.diag-item-head{font-size:12.5px;color:var(--text-primary);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.diag-idx{font-family:ui-monospace,Consolas,monospace;color:var(--text-muted)}
+.diag-tag{font-size:10px;padding:1px 6px;border-radius:8px}
+.diag-tag.strong{background:rgba(63,185,80,.15);color:var(--success)}
+.diag-tag.weak{background:rgba(210,153,34,.15);color:#d29922}
+.diag-state{margin-left:auto;font-size:11px}
+.diag-state.ok{color:var(--success)}
+.diag-state.fail{color:var(--recording)}
+.diag-detail{font-size:11.5px;color:var(--text-secondary);margin-top:6px;line-height:1.5;word-break:break-all}
+.diag-attempts{margin-top:6px;font-size:11px;color:var(--text-muted)}
+.diag-attempts summary{cursor:pointer}
+.diag-attempts pre{max-height:180px;overflow:auto;background:var(--bg-elevated);padding:8px;border-radius:var(--r-sm);font-size:10.5px;white-space:pre-wrap;word-break:break-all;color:var(--text-secondary)}
+.diag-err{font-size:12px;color:var(--recording);padding:12px;background:var(--bg-input);border-radius:var(--r)}
+.diag-tip{margin-top:var(--sp3);font-size:11.5px;color:var(--text-secondary);line-height:1.6;padding:10px;background:var(--accent-dim2);border-radius:var(--r)}
+.diag-tip code{font-family:ui-monospace,Consolas,monospace;color:var(--accent)}
+
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="titlebar-brand">
+    <div class="titlebar-logo">🌙</div>
+    <span class="titlebar-name">Moonshine</span>
+    <span class="titlebar-version" id="versionTag">v2.0</span>
+  </div>
+  <div class="titlebar-spacer"></div>
+  <div class="titlebar-right">
+    <button class="titlebar-help" id="btnHelp" title="使用指南：接入 / 编译 / 部署">📖 使用指南</button>
+    <div class="status-pill" id="statusPill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">待机</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN BODY -->
+<div class="app-body">
+
+  <!-- ===== LEFT SIDEBAR ===== -->
+  <div class="sidebar">
+
+    <!-- Engine -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">🧠</span> 转写引擎</div>
+      <div class="field">
+        <div class="select-wrap">
+          <select id="engineSelect">
+            <option value="faster_whisper">faster-whisper（本地·中文优先）</option>
+            <option value="moonshine">moonshine（本地·英文流式）</option>
+            <option value="funasr">FunASR / Paraformer（本地·中文流式）</option>
+            <option value="volcengine">☁️ 火山引擎（云端·豆包流式）</option>
+            <option value="tencent">☁️ 腾讯云（云端·大模型 2.0）</option>
+            <option value="alicloud">☁️ 阿里云（云端·智能语音交互）</option>
+          </select>
+        </div>
+        <div class="device-status" id="engineStatus"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">模型</div>
+        <input type="text" id="modelInput" class="text-input" value="large-v3-turbo"/>
+      </div>
+      <div class="field">
+        <div class="field-label">语言</div>
+        <input type="text" id="langInput" class="text-input" value="zh"/>
+      </div>
+      <button class="asr-settings-btn" id="btnAsrSettings" style="display:none">🔑 云 ASR 凭证设置</button>
+    </div>
+
+    <!-- Devices -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">🎤</span> 输入设备</div>
+      <div class="field">
+        <div class="field-label">麦克风</div>
+        <div class="select-wrap">
+          <select id="micSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="micStatus"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">系统内录</div>
+        <div class="select-wrap">
+          <select id="loopSelect" disabled><option>加载中…</option></select>
+        </div>
+        <div class="device-status" id="loopStatus"></div>
+      </div>
+      <button class="refresh-btn" id="btnRefresh" title="重新扫描音频设备">↻ 刷新设备列表</button>
+      <button class="refresh-btn" id="btnAudioDiag" title="逐个测试输入设备能否打开，定位内录失败">🔧 音频诊断</button>
+      <div class="loopback-guide" id="loopGuide">
+        <strong>💡 启用 Windows 系统内录</strong>
+        <ol>
+          <li>右键<span>任务栏音量图标</span> → 打开声音设置</li>
+          <li>拉到底 → <span>声音控制面板</span></li>
+          <li>切换到「<span>录制</span>」选项卡</li>
+          <li>右键空白处 → ☑️<span>显示禁用的设备</span></li>
+          <li>找到「<span>立体声混音</span>」→ 右键 → 启用</li>
+          <li>回到 App 点击「↻ 刷新设备」</li>
+        </ol>
+      </div>
+      <button class="guide-toggle" id="guideToggle">查看内录帮助</button>
+    </div>
+
+    <!-- Waveform -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">〰️</span> 音频电平</div>
+      <div class="waveform-wrap" id="waveformWrap">
+        <canvas id="waveformCanvas"></canvas>
+        <div class="waveform-idle" id="waveformIdle">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+        <div class="vad-label" id="vadLabel">
+          <div class="vad-dot"></div>
+          <span id="vadText">等待输入</span>
+        </div>
+        <div class="waveform-label" id="waveformLabel">待机</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">📊</span> 本次会议</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">录制时长</div>
+          <div class="stat-value" id="statDuration">00:00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">麦克风</div>
+          <div class="stat-value green" id="statMic">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">内录</div>
+          <div class="stat-value blue" id="statLoop">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">总字数</div>
+          <div class="stat-value orange" id="statChars">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="panel">
+      <div class="panel-label"><span class="icon">⚙️</span> 选项</div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">启用 VAD</div>
+          <div class="toggle-desc">静音自动跳过，降低噪音</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="vadToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">双路同时采集</div>
+          <div class="toggle-desc">麦克风 + 系统内录并行</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="dualToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="ctrl-area">
+      <button class="record-btn start" id="btnRecord">
+        <span id="recordIcon">⏺</span>
+        <span id="recordLabel">开始录制</span>
+        <div class="pulse-ring"></div>
+      </button>
+      <div class="export-row">
+        <div class="export-select">
+          <div class="select-wrap">
+            <select id="exportFormat">
+              <option value="md">📄 Markdown</option>
+              <option value="srt">🎬 SRT 字幕</option>
+              <option value="txt">📝 纯文本</option>
+            </select>
+          </div>
+        </div>
+        <button class="export-btn" id="btnExport">💾 导出</button>
+      </div>
+      <div class="shortcut-hint">
+        <kbd>⌘R</kbd> 开始 &nbsp;<kbd>⌘S</kbd> 停止 &nbsp;<kbd>⌘E</kbd> 导出
+      </div>
+      <button class="help-link-btn" id="btnHelpSide">📖 接入 / 编译 / 部署指南</button>
+    </div>
+
+    <div id="envAlert"></div>
+  </div>
+  <!-- /sidebar -->
+
+  <!-- ===== CENTER ===== -->
+  <div class="center" id="centerArea">
+    <div class="transcript-header">
+      <span class="transcript-title">实时字幕</span>
+      <span class="transcript-badge" id="totalBadge">0 条</span>
+      <div class="transcript-meta">
+        <span class="transcript-time" id="totalTime">00:00:00</span>
+        <button class="transcript-clear" id="btnClear">清空</button>
+      </div>
+    </div>
+
+    <div id="transcriptLog">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-illustration"><span class="icon">🎙️</span></div>
+        <div class="empty-title">准备就绪</div>
+        <div class="empty-desc">选择设备与引擎后点击「开始录制」<br>首次使用请允许系统调用麦克风权限</div>
+        <div class="empty-hint">按 <kbd>⌘R</kbd> 或点击下方按钮开始</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="ai-panel" id="aiPanel">
+    <div class="ai-header">
+      <div class="ai-header-icon">✨</div>
+      <span class="ai-header-title">会议洞察</span>
+      <span class="ai-header-badge">AI</span>
+    </div>
+    <div class="ai-body">
+
+      <!-- Summary -->
+      <div class="ai-section">
+        <div class="ai-section-title">📝 会议摘要</div>
+        <div class="summary-card" id="summaryCard">
+          <span class="placeholder">停止录制后点击「生成摘要」…</span>
+        </div>
+        <button class="summarize-btn" id="btnSummarize">✨ 生成摘要</button>
+      </div>
+
+      <!-- Keywords -->
+      <div class="ai-section">
+        <div class="ai-section-title">🔑 关键词</div>
+        <div class="kw-tags" id="kwTags"><span class="kw-tag" style="opacity:.4">—</span></div>
+      </div>
+
+      <!-- Speaking ratio -->
+      <div class="ai-section">
+        <div class="ai-section-title">🎙️ 麦克风 / 内录 比例</div>
+        <div class="ratio-chart">
+          <div class="ratio-bar-wrap">
+            <div class="ratio-seg mic" id="ratioMic" style="width:50%"></div>
+            <div class="ratio-seg loop" id="ratioLoop" style="width:50%"></div>
+          </div>
+          <div class="ratio-legend">
+            <div class="ratio-legend-item"><div class="dot mic"></div><span id="ratioMicPct">50%</span> 麦克风</div>
+            <div class="ratio-legend-item"><div class="dot loop"></div><span id="ratioLoopPct">50%</span> 内录</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speaking speed -->
+      <div class="ai-section">
+        <div class="ai-section-title">⚡ 语速</div>
+        <div class="speed-row">
+          <div>
+            <span class="speed-val" id="speedVal">0</span>
+            <span class="speed-unit">字/分钟</span>
+          </div>
+        </div>
+        <div class="speed-bar"><div class="speed-fill" id="speedFill" style="width:0%"></div></div>
+      </div>
+
+      <!-- Meeting timer -->
+      <div class="ai-section">
+        <div class="ai-section-title">⏱️ 会议时长</div>
+        <div class="stat-card" style="grid-template-columns:1fr">
+          <div class="stat-label">已录制</div>
+          <div class="stat-value orange" id="aiDuration">00:00:00</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel toggle -->
+  <button class="panel-toggle-btn" id="panelToggleBtn" title="切换侧边栏">◀</button>
+
+</div>
+<!-- /app-body -->
+
+<!-- LOG PANEL -->
+<div id="logPanel"><div id="logContent"></div></div>
+
+<!-- ASR SETTINGS MODAL -->
+<div class="modal-backdrop" id="asrModal" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🔑 云 ASR 凭证设置</h2>
+      <button class="modal-close" id="asrModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">选择服务商并填入 API Key（凭证仅存本机，不上传）。<a href="#" id="asrGuideLink">查看接入指导 ↗</a></p>
+      <div class="asr-provider-list" id="asrProviderList"></div>
+      <div id="asrFields"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="asrTestResult"></span>
+      <button class="asr-btn" id="btnAsrTest">测试连接</button>
+      <button class="asr-btn primary" id="btnAsrSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div class="modal-backdrop" id="helpModal" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2>📖 使用指南</h2>
+      <button class="modal-close" id="helpModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="help-tabs" id="helpTabs">
+      <button class="help-tab active" data-tab="access">☁️ 接入指导</button>
+      <button class="help-tab" data-tab="build">🛠️ 本地编译</button>
+      <button class="help-tab" data-tab="deploy">📦 部署指导</button>
+    </div>
+    <div class="modal-body help-body" id="helpBody"></div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="helpHint">完整文档位于仓库 doc/ 目录</span>
+      <button class="asr-btn" id="btnHelpClose">关闭</button>
+      <button class="asr-btn primary" id="btnHelpDoc">查看完整文档 ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIO DIAGNOSTIC MODAL -->
+<div class="modal-backdrop" id="diagModal" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2>🔧 音频设备诊断</h2>
+      <button class="modal-close" id="diagModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">逐个真实打开输入流（不录音），列出可打开性、命中配置与原始系统错误。用于定位「打开内录失败」。诊断期间请勿录制。</p>
+      <div id="diagBody"><span class="placeholder">点击「开始诊断」运行…</span></div>
+    </div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="diagResult"></span>
+      <button class="asr-btn" id="btnDiagClose">关闭</button>
+      <button class="asr-btn primary" id="btnDiagRun">开始诊断</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 界面预览用 Tauri API mock：真实桌面应用由 src-tauri 提供同名命令 */
+(() => {
+  const listeners = {};
+  let timer = null, volTimer = null;
+  const emit = (n, p) => (listeners[n] || []).forEach((cb) => cb({ payload: p }));
+
+  const DEVICES = [
+    { index: 0, name: '麦克风 (Realtek(R) Audio)', channels: 2, defaultRate: 44100, isLoopback: false, loopbackHint: false, kind: 'input' },
+    { index: 1, name: '麦克风阵列 (英特尔\u00ae 智音技术)', channels: 2, defaultRate: 48000, isLoopback: false, loopbackHint: false, kind: 'input' },
+    { index: 2, name: '扬声器 (Realtek(R) Audio)（系统声音）', channels: 2, defaultRate: 48000, isLoopback: true, loopbackHint: true, kind: 'loopback' },
+    { index: 3, name: '耳机 (WH-1000XM5)（系统声音）', channels: 2, defaultRate: 48000, isLoopback: true, loopbackHint: true, kind: 'loopback' }
+  ];
+
+  const PROBES = {
+    host: 'Wasapi', targetSampleRate: 16000,
+    probes: [
+      { index: 0, name: '麦克风 (Realtek(R) Audio)', isLoopback: false, loopbackHint: false, kind: 'input', ok: true,
+        config: '2ch/44100Hz/Default/F32 \u2192 内部混单/重采样为 16kHz 单声道 f32', error: null, attempts: [] },
+      { index: 1, name: '麦克风阵列 (英特尔\u00ae 智音技术)', isLoopback: false, loopbackHint: false, kind: 'input', ok: true,
+        config: '2ch/48000Hz/Default/F32 \u2192 内部混单/重采样为 16kHz 单声道 f32', error: null, attempts: [] },
+      { index: 2, name: '扬声器 (Realtek(R) Audio)（系统声音）', isLoopback: true, loopbackHint: true, kind: 'loopback', ok: true,
+        config: 'WASAPI 回环 OK：2ch/48000Hz/32-bit float \u2192 内部混单/重采样为 16kHz 单声道 f32', error: null, attempts: [] },
+      { index: 3, name: '耳机 (WH-1000XM5)（系统声音）', isLoopback: true, loopbackHint: true, kind: 'loopback', ok: false, config: null,
+        error: '回环初始化失败（设备可能被独占模式占用，或驱动不支持 loopback）: 0x8889000A 设备正在使用中', attempts: [] }
+    ]
+  };
+
+  const PROVIDERS = [
+    { id: 'volcengine', name: '火山引擎', needsKey: true,
+      keyFields: [
+        { key: 'accessKeyId', label: 'AccessKey ID', placeholder: 'AKLT...', type: 'text' },
+        { key: 'secretKey', label: 'Secret Key', placeholder: '火山引擎 SecretKey', type: 'password' },
+        { key: 'appId', label: 'App ID', placeholder: '数字应用 ID', type: 'text' }],
+      models: [{ id: 'bigmodel', name: '豆包流式语音识别 2.0（中文）' }],
+      console: 'https://console.volcengine.com/speech/app', consoleLabel: '火山引擎 · 语音技术控制台',
+      docUrl: 'https://www.volcengine.com/docs/6561/1354869',
+      keyGuide: '创建应用并勾选「流式语音识别大模型」，取得 APP ID 与 AK/SK。' },
+    { id: 'tencent', name: '腾讯云', needsKey: true,
+      keyFields: [
+        { key: 'appId', label: 'AppID', placeholder: '例如 1250000000', type: 'text' },
+        { key: 'secretId', label: 'SecretId', placeholder: 'AKID...', type: 'text' },
+        { key: 'secretKey', label: 'SecretKey', placeholder: '腾讯云 SecretKey', type: 'password' }],
+      models: [{ id: '16k_zh_en', name: '中英大模型 2.0（会议推荐）' }],
+      console: 'https://console.cloud.tencent.com/asr', consoleLabel: '腾讯云 · 语音识别控制台',
+      docUrl: 'https://cloud.tencent.com/document/product/1093/131127',
+      keyGuide: '开通语音识别后，在「API 密钥管理」新建密钥，取得 AppID、SecretId、SecretKey。' },
+    { id: 'alicloud', name: '阿里云', needsKey: true,
+      keyFields: [
+        { key: 'accessKeyId', label: 'AccessKey ID', placeholder: 'LTAI...', type: 'text' },
+        { key: 'accessKeySecret', label: 'AccessKey Secret', placeholder: '阿里云 AccessKeySecret', type: 'password' },
+        { key: 'appKey', label: 'AppKey', placeholder: '项目 AppKey', type: 'text' }],
+      models: [{ id: 'domain-meeting-domain', name: '会议领域（中文）' }],
+      console: 'https://nls-portal.console.aliyun.com/', consoleLabel: '阿里云 · 智能语音交互控制台',
+      docUrl: 'https://help.aliyun.com/knowledge_detail/72214.html',
+      keyGuide: '开通 NLS → 创建 AccessKey → 创建项目取 Appkey。' }
+  ];
+
+  const LINES = [
+    ['loopback', '我们先过一下这周的进度，重点看新架构落地到什么程度。'],
+    ['mic', '核心库已经拆出来了，双路采集也跑通了，本地引擎和云引擎共用同一套抽象。'],
+    ['loopback', '内录这块之前一直打不开，现在定位到原因了吗？'],
+    ['mic', '确认了，是 WASAPI 回环的问题——系统声音不是输入设备，得拿输出设备加 loopback 标志开流。'],
+    ['loopback', '那现在设备列表里能直接看到「系统声音」了吗？'],
+    ['mic', '能，麦克风在上面，扬声器和耳机在下面单独标成系统声音，选一下就能录。'],
+    ['loopback', '云 ASR 三家都接好了？'],
+    ['mic', '火山、腾讯云、阿里云都接了，填 Key 就能用，本地不用装 Python 也不用下模型。']
+  ];
+  let cursor = 0;
+
+  window.__TAURI__ = {
+    core: {
+      invoke: async (cmd) => {
+        switch (cmd) {
+          case 'get_version': return '2.0.0';
+          case 'list_devices': return DEVICES;
+          case 'probe_audio_devices': return PROBES;
+          case 'get_asr_providers': return PROVIDERS;
+          case 'load_asr_settings': return {};
+          case 'save_asr_settings': return null;
+          case 'test_asr_connection': return null;
+          case 'open_external_url': return null;
+          case 'start_transcription': {
+            emit('status', 'running');
+            emit('log', '[mock] 界面预览模式：以下字幕为模拟数据');
+            cursor = 0;
+            timer = setInterval(() => {
+              const [source, text] = LINES[cursor % LINES.length];
+              cursor += 1;
+              emit('transcript', { source, text, isFinal: true, ts: Date.now() });
+            }, 2600);
+            volTimer = setInterval(() => emit('volume', { volume: 0.15 + Math.random() * 0.6 }), 120);
+            return null;
+          }
+          case 'stop_transcription': {
+            clearInterval(timer); clearInterval(volTimer);
+            emit('volume', { volume: 0 }); emit('status', 'stopped');
+            return null;
+          }
+          case 'export_session': return '# 会议记录\n\n（界面预览：导出内容为模拟数据）\n';
+          case 'save_transcript': return 'C:/Users/you/Documents/meeting.md';
+          case 'summarize': return '## 摘要\n\n- 新架构核心库已拆分完成，双路采集跑通\n- 内录问题定位为 WASAPI 回环\n- 三家云 ASR 均已接入\n';
+          default: return null;
+        }
+      }
+    },
+    event: {
+      listen: async (name, cb) => {
+        (listeners[name] = listeners[name] || []).push(cb);
+        return () => { listeners[name] = (listeners[name] || []).filter((f) => f !== cb); };
+      }
+    }
+  };
+})();
+</script>
+<script type="module">
+// Moonshine 会议助手 — 前端逻辑（Tauri 2）
+
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  isRunning: false,
+  micReady: false,
+  loopFound: false,
+  micCount: 0,
+  loopCount: 0,
+  chars: 0,
+  entries: [],
+  startTs: null,
+  timer: null,
+  volumeHistory: new Array(40).fill(0),
+  waveformAnimFrame: null,
+  devices: [],
+};
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const els = {
+  engineSelect: $('engineSelect'),
+  modelInput: $('modelInput'),
+  langInput: $('langInput'),
+  engineStatus: $('engineStatus'),
+  micSelect: $('micSelect'),
+  loopSelect: $('loopSelect'),
+  micStatus: $('micStatus'),
+  loopStatus: $('loopStatus'),
+  btnRefresh: $('btnRefresh'),
+  vadToggle: $('vadToggle'),
+  dualToggle: $('dualToggle'),
+  btnRecord: $('btnRecord'),
+  btnExport: $('btnExport'),
+  btnClear: $('btnClear'),
+  btnSummarize: $('btnSummarize'),
+  tlog: $('transcriptLog'),
+  emptyState: $('emptyState'),
+  envAlert: $('envAlert'),
+  statusPill: $('statusPill'),
+  statusText: $('statusText'),
+  logPanel: $('logPanel'),
+  logContent: $('logContent'),
+  panelToggleBtn: $('panelToggleBtn'),
+  aiPanel: $('aiPanel'),
+  waveformCanvas: $('waveformCanvas'),
+  waveformIdle: $('waveformIdle'),
+  vadLabel: $('vadLabel'),
+  vadText: $('vadText'),
+  waveformLabel: $('waveformLabel'),
+  summaryCard: $('summaryCard'),
+  versionTag: $('versionTag'),
+  btnAsrSettings: $('btnAsrSettings'),
+  asrModal: $('asrModal'),
+  asrProviderList: $('asrProviderList'),
+  asrFields: $('asrFields'),
+  asrTestResult: $('asrTestResult'),
+  btnAsrTest: $('btnAsrTest'),
+  btnAsrSave: $('btnAsrSave'),
+  asrModalClose: $('asrModalClose'),
+  asrGuideLink: $('asrGuideLink'),
+  btnHelp: $('btnHelp'),
+  btnHelpSide: $('btnHelpSide'),
+  helpModal: $('helpModal'),
+  helpTabs: $('helpTabs'),
+  helpBody: $('helpBody'),
+  helpHint: $('helpHint'),
+  btnHelpClose: $('btnHelpClose'),
+  btnHelpDoc: $('btnHelpDoc'),
+  helpModalClose: $('helpModalClose'),
+  btnAudioDiag: $('btnAudioDiag'),
+  diagModal: $('diagModal'),
+  diagModalClose: $('diagModalClose'),
+  diagBody: $('diagBody'),
+  diagResult: $('diagResult'),
+  btnDiagRun: $('btnDiagRun'),
+  btnDiagClose: $('btnDiagClose'),
+};
+
+// ============================================================
+// WAVEFORM
+// ============================================================
+function setupCanvas() {
+  const c = els.waveformCanvas;
+  if (!c) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = c.getBoundingClientRect();
+  c.width = Math.max(1, rect.width * dpr);
+  c.height = Math.max(1, rect.height * dpr);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawWaveform(volume) {
+  const c = els.waveformCanvas;
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const rect = c.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+  S.volumeHistory.push(Math.min(1, Math.max(0, volume)));
+  S.volumeHistory.shift();
+  ctx.clearRect(0, 0, W, H);
+  const barW = W / S.volumeHistory.length - 1;
+  S.volumeHistory.forEach((v, i) => {
+    const barH = Math.max(2, v * H * 0.9);
+    const x = i * (barW + 1);
+    const y = (H - barH) / 2;
+    const alpha = 0.4 + v * 0.6;
+    ctx.fillStyle = S.isRunning
+      ? `rgba(124,106,245,${alpha})`
+      : `rgba(86,87,112,${alpha * 0.5})`;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barW, barH, 2); else ctx.rect(x, y, barW, barH);
+    ctx.fill();
+  });
+}
+
+function stopWaveform() {
+  if (S.waveformAnimFrame) { cancelAnimationFrame(S.waveformAnimFrame); S.waveformAnimFrame = null; }
+  S.volumeHistory.fill(0);
+  const c = els.waveformCanvas;
+  if (c) c.getContext('2d').clearRect(0, 0, c.getBoundingClientRect().width, c.getBoundingClientRect().height);
+}
+
+// ============================================================
+// DEVICE LOADING
+// ============================================================
+async function loadDevices() {
+  setStatusPill('loading', '加载设备…');
+  els.btnRefresh.disabled = true;
+  els.micSelect.innerHTML = '<option>加载中…</option>'; els.micSelect.disabled = true;
+  els.loopSelect.innerHTML = '<option>加载中…</option>'; els.loopSelect.disabled = true;
+
+  let devs;
+  try {
+    devs = await invoke('list_devices');
+  } catch (e) {
+    devs = { error: String(e) };
+  }
+  els.btnRefresh.disabled = false;
+
+  if (devs.error || !Array.isArray(devs)) {
+    const msg = devs.error || '无法枚举设备';
+    setDeviceStatus(els.micStatus, 'err', msg);
+    showAlert('⚠️ ' + msg + '（请确认系统音频权限）');
+    setStatusPill('error', '设备加载失败');
+    addLog('[ERROR] ' + msg, 'err');
+    return;
+  }
+
+  els.envAlert.classList.remove('visible');
+  // 后端 AudioDevice 现输出 camelCase；兼容旧字段，且不再误过滤掉设备
+  const inputs = devs.filter((d) => (d.channels ?? d.maxInputChannels ?? 1) > 0);
+  S.devices = inputs;
+
+  if (inputs.length === 0) {
+    showAlert('⚠️ 未检测到任何音频输入设备，请检查麦克风连接或系统权限');
+    setStatusPill('error', '无设备');
+    return;
+  }
+
+  const isStrong = (d) => d.isLoopback === true;
+  const isWeak = (d) => !isStrong(d) && d.loopbackHint === true;
+
+  // 内录下拉：列出【所有】输入设备。关键词识别可能漏判 WASAPI 回环 / PulseAudio
+  // monitor 设备，允许手动选任意设备作为内录源，避免「未检测到 Loopback」直接不可用。
+  const loopOrder = [...inputs].sort(
+    (a, b) => (isStrong(a) ? 0 : isWeak(a) ? 1 : 2) - (isStrong(b) ? 0 : isWeak(b) ? 1 : 2)
+      || a.index - b.index
+  );
+  els.loopSelect.innerHTML = '';
+  loopOrder.forEach((d) => {
+    const tag = isStrong(d) ? ' ⭐内录' : isWeak(d) ? ' 🔶疑似内录' : '';
+    els.loopSelect.add(new Option(`${d.index}: ${d.name}${tag}`, d.index));
+  });
+
+  // 麦克风下拉：非内录设备优先
+  const micOrder = [...inputs].sort(
+    (a, b) => (isStrong(a) ? 1 : 0) - (isStrong(b) ? 1 : 0) || a.index - b.index
+  );
+  els.micSelect.innerHTML = '';
+  micOrder.forEach((d) => els.micSelect.add(new Option(`${d.index}: ${d.name}`, d.index)));
+
+  const strong = inputs.filter(isStrong);
+  const weak = inputs.filter(isWeak);
+  S.loopFound = strong.length > 0 || weak.length > 0;
+
+  if (strong.length) {
+    els.loopSelect.value = String(strong[0].index);
+    setDeviceStatus(els.loopStatus, 'ok', `检测到内录设备 ${strong[0].name}`);
+  } else if (weak.length) {
+    els.loopSelect.value = String(weak[0].index);
+    setDeviceStatus(els.loopStatus, 'warn', `未识别到标准内录，已预选「${weak[0].name}」，建议先跑音频诊断`);
+  } else {
+    els.loopSelect.value = String(loopOrder[0].index);
+    setDeviceStatus(els.loopStatus, 'warn', '未发现内录设备，可手动选任意输入设备并用音频诊断确认');
+  }
+
+  const micDevice = inputs.find((d) => !isStrong(d)) || inputs[0];
+  els.micSelect.value = String(micDevice.index);
+  els.micSelect.disabled = false;
+  els.loopSelect.disabled = false;
+  S.micReady = true;
+  setDeviceStatus(els.micStatus, 'ok', `就绪: ${micDevice.name}`);
+
+  els.btnRecord.disabled = false;
+  setStatusPill('idle', '就绪');
+  if (!strong.length) {
+    $('loopGuide').classList.add('visible');
+    $('guideToggle').classList.add('visible');
+  }
+}
+
+function deviceName(index) {
+  if (!Number.isFinite(index) || index < 0) return null;
+  const d = S.devices.find((x) => x.index === index);
+  return d ? d.name : null;
+}
+
+// ============================================================
+// AUDIO DIAGNOSTIC
+// ============================================================
+function openAudioDiag() {
+  els.diagModal.style.display = 'flex';
+  if (!els.diagBody.dataset.loaded) runAudioDiag();
+}
+function closeAudioDiag() { els.diagModal.style.display = 'none'; }
+
+async function runAudioDiag() {
+  if (S.isRunning) {
+    els.diagResult.textContent = '请先停止录制再诊断';
+    els.diagResult.className = 'asr-test-result err';
+    return;
+  }
+  els.btnDiagRun.disabled = true;
+  els.diagBody.innerHTML = '<span class="placeholder">正在逐个打开输入流（失败设备会尝试多种配置），请稍候…</span>';
+  els.diagResult.textContent = '诊断中…';
+  els.diagResult.className = 'asr-test-result';
+  try {
+    const r = await invoke('probe_audio_devices');
+    els.diagBody.dataset.loaded = '1';
+    renderDiag(r);
+  } catch (e) {
+    els.diagBody.innerHTML = '<div class="diag-err">诊断失败: ' + escHtml(String(e)) + '</div>';
+    els.diagResult.textContent = '✗ 失败';
+    els.diagResult.className = 'asr-test-result err';
+  } finally {
+    els.btnDiagRun.disabled = false;
+  }
+}
+
+function renderDiag(r) {
+  const probes = r.probes || [];
+  const ok = probes.filter((p) => p.ok).length;
+  els.diagResult.textContent = `宿主 ${r.host} · ${ok}/${probes.length} 个设备可打开`;
+  els.diagResult.className = 'asr-test-result ' + (ok > 0 ? 'ok' : 'err');
+
+  if (!probes.length) {
+    els.diagBody.innerHTML = '<div class="diag-err">未枚举到任何输入设备。请检查系统麦克风权限与音频驱动。</div>';
+    return;
+  }
+
+  let html = `<div class="diag-summary">目标输出 <b>${r.targetSampleRate || 16000} Hz / 单声道 / f32</b>；「命中」即该设备实际可用的采集配置。</div>`;
+  for (const p of probes) {
+    const tag = p.isLoopback
+      ? '<span class="diag-tag strong">内录</span>'
+      : (p.loopbackHint ? '<span class="diag-tag weak">疑似内录</span>' : '');
+    const state = p.ok
+      ? '<span class="diag-state ok">✅ 可打开</span>'
+      : '<span class="diag-state fail">❌ 打不开</span>';
+    const detail = escHtml(p.ok ? (p.config || '') : (p.error || ''));
+    const attempts = (!p.ok && p.attempts && p.attempts.length)
+      ? `<details class="diag-attempts"><summary>查看 ${p.attempts.length} 条尝试明细</summary><pre>${escHtml(p.attempts.join('\n'))}</pre></details>`
+      : '';
+    html += `<div class="diag-item ${p.ok ? 'ok' : 'fail'}">
+      <div class="diag-item-head"><span class="diag-idx">[${p.index}]</span> ${escHtml(p.name)} ${tag} ${state}</div>
+      <div class="diag-detail">${detail}</div>
+      ${attempts}
+    </div>`;
+  }
+  html += '<div class="diag-tip">💡 若内录取不到声音，可在 Windows 命令行运行 <code>audio-probe.exe --level</code> 并播放音乐，查看该设备电平是否大于 0。</div>';
+  els.diagBody.innerHTML = html;
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function setStatusPill(type, text) {
+  els.statusPill.className = 'status-pill ' + type;
+  els.statusText.textContent = text;
+}
+function setDeviceStatus(el, state, text) {
+  el.className = 'device-status ' + state;
+  el.innerHTML = state ? `<div class="dot"></div>${text}` : text;
+}
+function showAlert(msg) {
+  els.envAlert.textContent = msg;
+  els.envAlert.classList.add('visible');
+}
+function addLog(txt, type) {
+  els.logPanel.classList.add('visible');
+  const div = document.createElement('div');
+  div.className = type ? `log-${type}` : '';
+  div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + txt;
+  els.logContent.appendChild(div);
+  els.logContent.scrollTop = els.logContent.scrollHeight;
+}
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ============================================================
+// TRANSCRIPT
+// ============================================================
+function addTranscriptEntry(msg) {
+  if (els.emptyState) els.emptyState.style.display = 'none';
+  const src = msg.source || 'mic';
+  const icon = src === 'mic' ? '🎤' : src === 'loopback' ? '🔊' : '💬';
+  const color = src === 'mic' ? 'mic' : src === 'loopback' ? 'loop' : 'sys';
+  const label = msg.speaker || (src === 'mic' ? '麦克风' : src === 'loopback' ? '系统内录' : '混合');
+  const d = new Date();
+  const timeStr = [d.getHours(), d.getMinutes(), d.getSeconds()].map((x) => String(x).padStart(2, '0')).join(':');
+
+  S.entries.push({ source: src, text: msg.text, ts: msg.ts || Date.now() });
+  if (src === 'mic') S.micCount++; else if (src === 'loopback') S.loopCount++;
+  S.chars += (msg.text || '').length;
+
+  const el = document.createElement('div');
+  el.className = 't-card latest';
+  el.innerHTML = `
+    <div class="t-icon ${color}">${icon}</div>
+    <div class="t-body">
+      <div class="t-meta">
+        <span class="t-src ${color}">${label}</span>
+        <span class="t-time">${timeStr}</span>
+      </div>
+      <div class="t-text">${escHtml(msg.text)}</div>
+    </div>`;
+
+  const prev = els.tlog.querySelector('.t-card.latest:not(:last-child)');
+  if (prev) prev.classList.remove('latest');
+  els.tlog.appendChild(el);
+  els.tlog.scrollTop = els.tlog.scrollHeight;
+  updateStats();
+  updateAIPanel();
+}
+
+function updateStats() {
+  $('totalBadge').textContent = S.entries.length + ' 条';
+  $('statMic').textContent = S.micCount;
+  $('statLoop').textContent = S.loopCount;
+  $('statChars').textContent = S.chars;
+}
+
+function updateAIPanel() {
+  const total = S.micCount + S.loopCount;
+  if (total > 0) {
+    const micPct = Math.round((S.micCount / total) * 100);
+    $('ratioMic').style.width = micPct + '%';
+    $('ratioLoop').style.width = (100 - micPct) + '%';
+    $('ratioMicPct').textContent = micPct + '%';
+    $('ratioLoopPct').textContent = (100 - micPct) + '%';
+  }
+  if (S.startTs) {
+    const elapsedMin = (Date.now() - S.startTs) / 60000;
+    if (elapsedMin > 0.1) {
+      const wpm = Math.round(S.chars / elapsedMin);
+      $('speedVal').textContent = wpm;
+      $('speedFill').style.width = Math.min(100, wpm / 5) + '%';
+    }
+  }
+}
+
+// ============================================================
+// RECORDING
+// ============================================================
+async function startRecording() {
+  if (S.isRunning) return;
+  if (!S.micReady && !S.loopFound) { addLog('[ERROR] 请先选择音频设备', 'err'); return; }
+
+  const micIdx = parseInt(els.micSelect.value);
+  const loopIdx = els.dualToggle.checked ? parseInt(els.loopSelect.value) : -1;
+  const config = {
+    micDeviceIndex: Number.isFinite(micIdx) ? micIdx : -1,
+    loopbackDeviceIndex: Number.isFinite(loopIdx) ? loopIdx : -1,
+    micDeviceName: deviceName(micIdx),
+    loopbackDeviceName: els.dualToggle.checked ? deviceName(loopIdx) : null,
+    engine: els.engineSelect.value,
+    model: els.modelInput.value.trim() || 'large-v3-turbo',
+    language: els.langInput.value.trim() || 'zh',
+    vadEnabled: els.vadToggle.checked,
+    dualEnabled: els.dualToggle.checked,
+  };
+
+  addLog('启动: ' + config.engine + ' @ ' + config.model, 'info');
+  try {
+    await invoke('start_transcription', { config });
+  } catch (e) {
+    addLog('[ERROR] 启动失败: ' + e, 'err');
+    showAlert('⚠️ 启动失败: ' + e);
+    return;
+  }
+  _startUI();
+}
+
+async function stopRecording() {
+  if (!S.isRunning) return;
+  try { await invoke('stop_transcription'); } catch (e) { addLog('[ERROR] ' + e, 'err'); }
+  addLog('已请求停止…', 'info');
+}
+
+function _startUI() {
+  S.isRunning = true;
+  S.startTs = Date.now();
+  S.micCount = 0; S.loopCount = 0; S.chars = 0;
+  S.entries = [];
+
+  els.btnRecord.className = 'record-btn stop';
+  $('recordIcon').textContent = '⏹';
+  $('recordLabel').textContent = '停止录制';
+  els.btnExport.disabled = true;
+  els.btnSummarize.disabled = true;
+  els.micSelect.disabled = true;
+  els.loopSelect.disabled = true;
+  els.btnRefresh.disabled = true;
+  els.engineSelect.disabled = true;
+  els.modelInput.disabled = true;
+  els.langInput.disabled = true;
+  els.vadToggle.disabled = true;
+  els.dualToggle.disabled = true;
+
+  setStatusPill('running', '录制中');
+  els.waveformIdle.classList.add('hidden');
+  els.waveformLabel.textContent = '● 录制中';
+
+  S.timer = setInterval(() => {
+    const e = Date.now() - S.startTs;
+    const ts = [Math.floor(e / 3600000), Math.floor((e % 3600000) / 60000), Math.floor((e % 60000) / 1000)]
+      .map((x) => String(x).padStart(2, '0')).join(':');
+    $('totalTime').textContent = ts;
+    $('statDuration').textContent = ts.slice(3);
+    $('aiDuration').textContent = ts;
+  }, 1000);
+}
+
+function _stopUI() {
+  S.isRunning = false;
+  clearInterval(S.timer);
+  stopWaveform();
+
+  els.btnRecord.className = 'record-btn start';
+  $('recordIcon').textContent = '⏺';
+  $('recordLabel').textContent = '开始录制';
+  els.btnRecord.disabled = !S.micReady;
+  els.btnExport.disabled = S.entries.length === 0;
+  els.btnSummarize.disabled = S.entries.length === 0;
+  els.micSelect.disabled = false;
+  els.loopSelect.disabled = false;
+  els.btnRefresh.disabled = false;
+  els.engineSelect.disabled = false;
+  els.modelInput.disabled = false;
+  els.langInput.disabled = false;
+  els.vadToggle.disabled = false;
+  els.dualToggle.disabled = false;
+
+  setStatusPill(S.micReady ? 'idle' : 'error', S.micReady ? '就绪' : '设备异常');
+  els.waveformIdle.classList.remove('hidden');
+  els.waveformLabel.textContent = '待机';
+  els.vadLabel.classList.remove('speaking');
+  els.vadText.textContent = '等待输入';
+}
+
+function clearTranscript() {
+  if (S.isRunning) return;
+  S.entries = []; S.micCount = 0; S.loopCount = 0; S.chars = 0;
+  els.tlog.querySelectorAll('.t-card').forEach((el) => el.remove());
+  if (els.emptyState) els.emptyState.style.display = '';
+  updateStats();
+  $('totalBadge').textContent = '0 条';
+  $('totalTime').textContent = '00:00:00';
+  $('statDuration').textContent = '00:00';
+  $('aiDuration').textContent = '00:00:00';
+  $('speedVal').textContent = '0';
+  $('speedFill').style.width = '0%';
+  $('ratioMic').style.width = '50%';
+  $('ratioLoop').style.width = '50%';
+  els.summaryCard.innerHTML = '<span class="placeholder">停止录制后点击「生成摘要」…</span>';
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+async function exportTranscript() {
+  if (S.entries.length === 0) { addLog('[WARN] 暂无内容可导出', 'warn'); return; }
+  const fmt = $('exportFormat').value;
+  let content;
+  try {
+    content = await invoke('export_session', { format: fmt });
+  } catch (e) {
+    addLog('[ERROR] 导出失败: ' + e, 'err');
+    return;
+  }
+  const d = new Date();
+  const ts = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  try {
+    const path = await invoke('save_transcript', {
+      request: { filename: `会议记录_${ts}.${fmt}`, content },
+    });
+    if (path) addLog('已导出 → ' + path, 'info');
+  } catch (e) {
+    addLog('[ERROR] 保存失败: ' + e, 'err');
+  }
+}
+
+// ============================================================
+// SUMMARY
+// ============================================================
+async function generateSummary() {
+  els.btnSummarize.disabled = true;
+  els.summaryCard.innerHTML = '<span class="placeholder">摘要生成中…（默认调用本地 Ollama）</span>';
+  try {
+    const text = await invoke('summarize', {
+      config: {
+        endpoint: 'http://localhost:11434/v1/chat/completions',
+        model: 'qwen2.5:7b',
+        api_key: null,
+      },
+    });
+    els.summaryCard.textContent = text;
+  } catch (e) {
+    els.summaryCard.innerHTML = '<span class="placeholder">摘要失败：' + escHtml(e) + '（请确认已启动本地 Ollama 或配置端点）</span>';
+    addLog('[ERROR] 摘要失败: ' + e, 'err');
+  }
+  els.btnSummarize.disabled = false;
+}
+
+// ============================================================
+// HELP / GUIDES
+// ============================================================
+const REPO = 'https://github.com/xiaopengs/moonshine-meeting-assistant';
+const GUIDE_URLS = {
+  access: `${REPO}/blob/main/doc/接入指导.md`,
+  build: `${REPO}/blob/main/doc/本地编译指导.md`,
+  deploy: `${REPO}/blob/main/doc/部署指导.md`,
+};
+let HELP_TAB = 'access';
+
+async function openExternal(url) {
+  try {
+    await invoke('open_external_url', { url });
+  } catch (e) {
+    addLog('[WARN] 打开链接失败: ' + e, 'warn');
+  }
+}
+
+const HELP_CONTENT = {
+  access: {
+    title: '☁️ 云 ASR 接入指导',
+    lead: '云端 ASR 采用 BYOK 模式：在云控制台开通服务并填入 Key 即可用，<b>无需 Python 与本地模型</b>。选择云引擎后，16 kHz PCM 音频会实时上传至所选服务商。',
+    steps: [
+      ['开通服务并创建应用', '火山：语音技术控制台创建应用并勾选「流式语音识别大模型」；腾讯：开通语音识别并在「API 密钥管理」新建密钥；阿里：开通 NLS 并创建项目。'],
+      ['获取凭证', '火山 <code>AK / SK + APP ID</code>；腾讯 <code>AppID / SecretId / SecretKey</code>；阿里 <code>AccessKey ID / Secret + 项目 Appkey</code>。'],
+      ['在 App 中填写', '侧栏选择云引擎 →「🔑 云 ASR 凭证设置」→ 选服务商 → 填 Key → 保存。凭证仅存本机 <code>asr-settings.json</code>。'],
+      ['验证', '点「测试连接」：火山 / 腾讯做 WebSocket 握手，阿里验证 CreateToken；通过后再录 30 秒真实音频做端到端确认。'],
+      ['排错', '鉴权失败先核对控制台版本差异（火山新旧版）、Key 是否含空格、系统时间是否准确；模型名可在主界面手动填写。'],
+    ],
+    code: {
+      label: '凭证文件位置（app_config_dir）',
+      lines: 'Windows  %APPDATA%\\com.moonshine.meeting-assistant\\\nmacOS    ~/Library/Application Support/com.moonshine.meeting-assistant/\nLinux    ~/.config/com.moonshine.meeting-assistant/',
+    },
+    tips: [
+      '三家按识别时长 / 并发计费，双路采集占用 2 路并发',
+      '火山新版控制台仅提供 App Key 时需按完整文档适配鉴权方式',
+      '涉密会议请改用本地引擎（音频零上传）',
+    ],
+    doc: '接入指导.md',
+  },
+  build: {
+    title: '🛠️ 本地编译指导',
+    lead: '前端是<b>零构建静态文件</b>，不需要 Node / npm；云 ASR 引擎也不需要 Python。只编译核心库时甚至不需要 WebKitGTK。',
+    steps: [
+      ['安装工具链', 'Rust stable ≥ 1.75；Linux 另需 WebKitGTK / GTK / ALSA 等系统库（见下方命令）；macOS 装 Xcode CLT；Windows 装 MSVC 生成工具 + WebView2。'],
+      ['只编译核心库（最快）', '<code>cargo check -p moonshine-core</code>，含三家云 ASR 签名与 WebSocket 代码，不依赖 Tauri 系统库。'],
+      ['整仓检查', '<code>cargo check --workspace</code> 与 <code>cargo clippy --workspace</code>。'],
+      ['安装 CLI 并运行', '<code>cargo install tauri-cli --version "^2" --locked</code> → <code>cargo tauri dev</code>。'],
+      ['打包', '<code>cargo tauri build</code>，产物位于 <code>target/release/bundle/</code>（NSIS / DMG / AppImage·deb）。'],
+    ],
+    code: {
+      label: 'Linux（Ubuntu / Debian）系统依赖',
+      lines: 'sudo apt-get install -y build-essential pkg-config \\\n  libwebkit2gtk-4.1-dev libgtk-3-dev \\\n  libayatana-appindicator3-dev librsvg2-dev \\\n  libasound2-dev libssl-dev patchelf',
+    },
+    tips: [
+      '本地引擎需 pip install -r python/requirements.txt',
+      '模型下载慢可设 HF_ENDPOINT=https://hf-mirror.com',
+      '打包后脚本路径可用 MOONSHINE_ENGINE_SCRIPT 覆盖',
+    ],
+    doc: '本地编译指导.md',
+  },
+  deploy: {
+    title: '📦 部署指导',
+    lead: '三种部署形态按隐私与运维成本选择，<b>切换引擎无需重装</b>。',
+    steps: [
+      ['A 纯本地（默认）', '装 Python + 引擎依赖 + 预置模型，音频零上传，适合涉密 / 内网环境。'],
+      ['B 云 ASR（BYOK）', '免 Python 与模型，只需填 Key；需实时出网，音频上传至所选厂商。'],
+      ['C 混合', '日常用云引擎，敏感会议切换本地引擎。'],
+      ['随包资源', '<code>bundle.resources</code> 会把 <code>python/engine_service.py</code> 与 requirements.txt 打进安装包；运行时按「环境变量 → 开发目录 → 资源目录」顺序查找脚本。'],
+      ['系统内录', 'Windows 启用「立体声混音」；macOS 需虚拟声卡（BlackHole 等）；Linux 用 PulseAudio monitor 设备。'],
+      ['验收', '设备枚举、30 秒录音、导出 MD/SRT/TXT、长会稳定性逐项确认。'],
+    ],
+    code: {
+      label: '云 ASR 出网域名白名单（WebSocket / HTTPS 443）',
+      lines: 'openspeech.bytedance.com\nasr.cloud.tencent.com\nnls-meta.cn-shanghai.aliyuncs.com\nnls-gateway-cn-shanghai.aliyuncs.com',
+    },
+    tips: [
+      'macOS 分发需 Developer ID 签名 + 公证，Windows 建议代码签名',
+      '凭证位于用户配置目录，覆盖安装不会被覆盖',
+      '当前版本尚未在真机打包 / 真实云 Key 联调，请按验收清单确认',
+    ],
+    doc: '部署指导.md',
+  },
+};
+
+function renderHelp() {
+  const c = HELP_CONTENT[HELP_TAB];
+  const steps = c.steps.map((s, i) => `
+    <div class="help-step">
+      <div class="help-step-num">${i + 1}</div>
+      <div>
+        <div class="help-step-title">${escHtml(s[0])}</div>
+        <div class="help-step-desc">${s[1]}</div>
+      </div>
+    </div>`).join('');
+  const tips = c.tips.map((t) => `<li>${escHtml(t)}</li>`).join('');
+  els.helpBody.innerHTML = `
+    <div class="help-lead">${c.lead}</div>
+    <div class="help-steps">${steps}</div>
+    <div class="help-code-label">${escHtml(c.code.label)}</div>
+    <pre class="help-code">${escHtml(c.code.lines)}</pre>
+    <div class="help-section-title">注意事项</div>
+    <ul class="help-tips">${tips}</ul>
+  `;
+  els.helpHint.textContent = '完整文档：doc/' + c.doc;
+  els.helpTabs.querySelectorAll('.help-tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === HELP_TAB);
+  });
+}
+
+function openHelp(tab) {
+  if (tab) HELP_TAB = tab;
+  renderHelp();
+  els.helpModal.style.display = 'flex';
+}
+
+function closeHelp() {
+  els.helpModal.style.display = 'none';
+}
+
+// ============================================================
+// CLOUD ASR SETTINGS
+// ============================================================
+let ASR_PROVIDERS = [];
+let ASR_SETTINGS = { volcengine: null, tencent: null, alicloud: null };
+let ASR_SELECTED_PROVIDER = 'volcengine';
+let ASR_MODELS = {};
+
+async function loadAsrProviders() {
+  try {
+    ASR_PROVIDERS = await invoke('get_asr_providers');
+  } catch (e) {
+    ASR_PROVIDERS = [];
+    addLog('[ERROR] 加载 ASR 服务商失败: ' + e, 'err');
+  }
+}
+
+async function loadAsrSettings() {
+  try {
+    ASR_SETTINGS = (await invoke('load_asr_settings')) || {};
+  } catch (e) {
+    ASR_SETTINGS = {};
+  }
+  try {
+    ASR_MODELS = JSON.parse(localStorage.getItem('asr_models') || '{}');
+  } catch (e) {
+    ASR_MODELS = {};
+  }
+}
+
+function openAsrSettings() {
+  if (!ASR_PROVIDERS.length) return;
+  if (!ASR_PROVIDERS.find((p) => p.id === ASR_SELECTED_PROVIDER)) {
+    ASR_SELECTED_PROVIDER = ASR_PROVIDERS[0].id;
+  }
+  els.asrTestResult.textContent = '';
+  els.asrTestResult.className = 'asr-test-result';
+  renderAsrProviders();
+  renderAsrFields(ASR_SELECTED_PROVIDER);
+  els.asrModal.style.display = 'flex';
+}
+
+function closeAsrSettings() {
+  els.asrModal.style.display = 'none';
+}
+
+function renderAsrProviders() {
+  els.asrProviderList.innerHTML = ASR_PROVIDERS.map((p) => `
+    <label class="asr-provider-option ${ASR_SELECTED_PROVIDER === p.id ? 'selected' : ''}">
+      <input type="radio" name="asr-provider" value="${p.id}" ${ASR_SELECTED_PROVIDER === p.id ? 'checked' : ''}/>
+      <span>${p.name}</span>
+    </label>
+  `).join('');
+  els.asrProviderList.querySelectorAll('input[name="asr-provider"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      ASR_SELECTED_PROVIDER = r.value;
+      els.asrTestResult.textContent = '';
+      els.asrTestResult.className = 'asr-test-result';
+      renderAsrProviders();
+      renderAsrFields(ASR_SELECTED_PROVIDER);
+    });
+  });
+}
+
+function renderAsrFields(providerId) {
+  const p = ASR_PROVIDERS.find((x) => x.id === providerId);
+  if (!p) { els.asrFields.innerHTML = ''; return; }
+  const creds = (ASR_SETTINGS && ASR_SETTINGS[providerId]) || {};
+  const fields = p.keyFields.map((f) => `
+    <label class="asr-field">
+      <span class="asr-field-label">${f.label}</span>
+      <input type="${f.type || 'text'}" data-cred-key="${f.key}" placeholder="${f.placeholder || ''}" value="${escHtml(creds[f.key] || '')}" autocomplete="off"/>
+    </label>
+  `).join('');
+  const model = ASR_MODELS[providerId] || p.models[0].id;
+  const models = p.models.map((m) => `<option value="${m.id}" ${model === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
+  els.asrFields.innerHTML = `
+    <h4 class="asr-section-title">${p.name} 配置</h4>
+    <div class="asr-guide-box">
+      <div class="asr-guide-title">🔑 ${escHtml(p.name)} 取 Key 指引</div>
+      <p>${escHtml(p.keyGuide || '在服务商控制台开通语音识别并创建凭证')}</p>
+      <div class="asr-guide-links">
+        <button type="button" class="link-btn" data-open-url="${escHtml(p.console)}">${escHtml(p.consoleLabel || '打开控制台')} ↗</button>
+        ${p.docUrl ? `<button type="button" class="link-btn" data-open-url="${escHtml(p.docUrl)}">官方文档 ↗</button>` : ''}
+        <button type="button" class="link-btn" data-open-url="${escHtml(GUIDE_URLS.access)}">接入指导 ↗</button>
+      </div>
+    </div>
+    ${fields}
+    <label class="asr-field">
+      <span class="asr-field-label">识别模型</span>
+      <select data-asr-model>${models}</select>
+    </label>
+  `;
+  els.asrFields.querySelectorAll('[data-open-url]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.openUrl;
+      if (url) openExternal(url);
+    });
+  });
+}
+
+function gatherAsrCreds(providerId) {
+  const p = ASR_PROVIDERS.find((x) => x.id === providerId);
+  if (!p) return null;
+  const creds = {};
+  els.asrFields.querySelectorAll('[data-cred-key]').forEach((inp) => {
+    creds[inp.dataset.credKey] = inp.value.trim();
+  });
+  return creds;
+}
+
+async function persistAsrSettings() {
+  const creds = gatherAsrCreds(ASR_SELECTED_PROVIDER);
+  if (!creds) return;
+  const merged = {
+    volcengine: (ASR_SETTINGS && ASR_SETTINGS.volcengine) || null,
+    tencent: (ASR_SETTINGS && ASR_SETTINGS.tencent) || null,
+    alicloud: (ASR_SETTINGS && ASR_SETTINGS.alicloud) || null,
+  };
+  merged[ASR_SELECTED_PROVIDER] = creds;
+  await invoke('save_asr_settings', { settings: merged });
+  ASR_SETTINGS = merged;
+
+  const modelSel = els.asrFields.querySelector('[data-asr-model]');
+  if (modelSel) ASR_MODELS[ASR_SELECTED_PROVIDER] = modelSel.value;
+  localStorage.setItem('asr_models', JSON.stringify(ASR_MODELS));
+
+  if (els.engineSelect.value === ASR_SELECTED_PROVIDER) {
+    els.modelInput.value = ASR_MODELS[ASR_SELECTED_PROVIDER];
+  }
+}
+
+async function saveAsrSettings() {
+  try {
+    await persistAsrSettings();
+    els.asrTestResult.textContent = '✓ 已保存';
+    els.asrTestResult.className = 'asr-test-result ok';
+    addLog('云 ASR 凭证已保存（' + ASR_SELECTED_PROVIDER + '）', 'info');
+  } catch (e) {
+    els.asrTestResult.textContent = '✗ 保存失败: ' + e;
+    els.asrTestResult.className = 'asr-test-result err';
+  }
+}
+
+async function testAsrConnection() {
+  els.asrTestResult.textContent = '连接测试中…';
+  els.asrTestResult.className = 'asr-test-result';
+  els.btnAsrTest.disabled = true;
+  try {
+    await persistAsrSettings();
+    const def = ASR_PROVIDERS.find((p) => p.id === ASR_SELECTED_PROVIDER)?.models[0].id;
+    const model = ASR_MODELS[ASR_SELECTED_PROVIDER] || def || '';
+    await invoke('test_asr_connection', { engine: ASR_SELECTED_PROVIDER, model });
+    els.asrTestResult.textContent = '✓ 连接成功，凭证有效';
+    els.asrTestResult.className = 'asr-test-result ok';
+  } catch (e) {
+    els.asrTestResult.textContent = '✗ ' + e;
+    els.asrTestResult.className = 'asr-test-result err';
+  }
+  els.btnAsrTest.disabled = false;
+}
+
+// ============================================================
+// ENGINE MODEL DEFAULTS
+// ============================================================
+const ENGINE_DEFAULTS = {
+  faster_whisper: { model: 'large-v3-turbo', lang: 'zh', remote: false },
+  moonshine: { model: 'small_streaming', lang: 'en', remote: false },
+  funasr: { model: 'paraformer-zh', lang: 'zh', remote: false },
+  volcengine: { model: 'bigmodel', lang: 'zh-CN', remote: true },
+  tencent: { model: '16k_zh_en', lang: 'zh-CN', remote: true },
+  alicloud: { model: 'domain-meeting-domain', lang: 'zh-CN', remote: true },
+};
+els.engineSelect.addEventListener('change', () => {
+  const d = ENGINE_DEFAULTS[els.engineSelect.value] || ENGINE_DEFAULTS.faster_whisper;
+  els.modelInput.value = ASR_MODELS[els.engineSelect.value] || d.model;
+  els.langInput.value = d.lang;
+  els.btnAsrSettings.style.display = d.remote ? '' : 'none';
+  if (d.remote) {
+    const saved = (ASR_SETTINGS && ASR_SETTINGS[els.engineSelect.value]) || {};
+    const hasCreds = Object.values(saved).some((v) => typeof v === 'string' && v.trim().length > 0);
+    setDeviceStatus(
+      els.engineStatus,
+      hasCreds ? 'ok' : 'warn',
+      hasCreds ? '已保存凭证，建议先「测试连接」' : '请点击「🔑 云 ASR 凭证设置」填入 Key'
+    );
+  } else {
+    setDeviceStatus(els.engineStatus, 'ok', '引擎已切换，模型加载将在首次录制时进行');
+  }
+});
+
+// ============================================================
+// EVENT BINDINGS
+// ============================================================
+els.btnRecord.addEventListener('click', () => (S.isRunning ? stopRecording() : startRecording()));
+els.btnExport.addEventListener('click', exportTranscript);
+els.btnClear.addEventListener('click', clearTranscript);
+els.btnRefresh.addEventListener('click', () => { if (!S.isRunning) loadDevices(); });
+els.btnSummarize.addEventListener('click', generateSummary);
+$('guideToggle').addEventListener('click', () => $('loopGuide').classList.toggle('visible'));
+
+els.btnAsrSettings.addEventListener('click', openAsrSettings);
+els.btnAsrTest.addEventListener('click', testAsrConnection);
+els.btnAsrSave.addEventListener('click', saveAsrSettings);
+els.asrModalClose.addEventListener('click', closeAsrSettings);
+els.asrModal.addEventListener('click', (e) => { if (e.target === els.asrModal) closeAsrSettings(); });
+els.asrGuideLink.addEventListener('click', (e) => { e.preventDefault(); openExternal(GUIDE_URLS.access); });
+
+els.btnHelp.addEventListener('click', () => openHelp());
+els.btnHelpSide.addEventListener('click', () => openHelp());
+els.helpModalClose.addEventListener('click', closeHelp);
+els.btnHelpClose.addEventListener('click', closeHelp);
+els.btnHelpDoc.addEventListener('click', () => openExternal(GUIDE_URLS[HELP_TAB]));
+els.helpModal.addEventListener('click', (e) => { if (e.target === els.helpModal) closeHelp(); });
+els.helpTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('.help-tab');
+  if (!btn) return;
+  HELP_TAB = btn.dataset.tab;
+  renderHelp();
+});
+
+els.btnAudioDiag.addEventListener('click', openAudioDiag);
+els.btnDiagRun.addEventListener('click', runAudioDiag);
+els.btnDiagClose.addEventListener('click', closeAudioDiag);
+els.diagModalClose.addEventListener('click', closeAudioDiag);
+els.diagModal.addEventListener('click', (e) => { if (e.target === els.diagModal) closeAudioDiag(); });
+
+let panelOpen = true;
+els.panelToggleBtn.addEventListener('click', () => {
+  panelOpen = !panelOpen;
+  els.aiPanel.classList.toggle('collapsed', !panelOpen);
+  els.panelToggleBtn.textContent = panelOpen ? '◀' : '▶';
+  setTimeout(setupCanvas, 300);
+});
+
+document.addEventListener('keydown', (e) => {
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  const cmd = isMac ? e.metaKey : e.ctrlKey;
+  if (cmd && e.key === 'r') { e.preventDefault(); S.isRunning ? stopRecording() : startRecording(); }
+  if (cmd && e.key === 's') { e.preventDefault(); if (S.isRunning) stopRecording(); }
+  if (cmd && e.key === 'e') { e.preventDefault(); exportTranscript(); }
+  if (e.key === 'Escape') {
+    if (els.helpModal.style.display !== 'none') { closeHelp(); return; }
+    if (els.diagModal.style.display !== 'none') { closeAudioDiag(); return; }
+    if (els.asrModal.style.display !== 'none') { closeAsrSettings(); return; }
+    if (S.isRunning) stopRecording();
+  }
+});
+
+// ============================================================
+// TAURI EVENTS
+// ============================================================
+async function bindEvents() {
+  await listen('transcript', (event) => {
+    const msg = event.payload;
+    if (msg && msg.text) addTranscriptEntry(msg);
+  });
+  await listen('volume', (event) => {
+    const v = event.payload && event.payload.volume;
+    if (typeof v === 'number') {
+      drawWaveform(v * 3);
+      const speaking = v > 0.015;
+      els.vadLabel.className = 'vad-label' + (speaking ? ' speaking' : '');
+      els.vadText.textContent = speaking ? '正在说话' : '等待输入';
+    }
+  });
+  await listen('log', (event) => {
+    const txt = String(event.payload);
+    addLog(txt, txt.startsWith('[ERROR]') ? 'err' : txt.startsWith('[WARN]') ? 'warn' : '');
+  });
+  await listen('status', (event) => {
+    if (event.payload === 'stopped') {
+      _stopUI();
+      addLog('转写进程已停止', 'info');
+    } else if (event.payload === 'running') {
+      // 已由 _startUI 处理
+    }
+  });
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+window.addEventListener('load', async () => {
+  setupCanvas();
+  try {
+    const v = await invoke('get_version');
+    els.versionTag.textContent = 'v' + v;
+  } catch (e) { /* ignore */ }
+  await bindEvents();
+  await loadAsrProviders();
+  await loadAsrSettings();
+  await loadDevices();
+});
+window.addEventListener('resize', setupCanvas);
+
+</script>
+</body>
+</html>

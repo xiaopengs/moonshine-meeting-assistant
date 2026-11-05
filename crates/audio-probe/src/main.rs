@@ -83,16 +83,21 @@ fn main() {
         println!("  （空）未枚举到任何输入设备");
     }
     for d in &devices {
-        let tag = if d.is_loopback {
-            "[明确内录]"
-        } else if d.loopback_hint {
-            "[疑似内录]"
-        } else {
-            "[普通输入]"
+        let tag = match d.kind {
+            audio::DeviceKind::Loopback => "[系统内录]",
+            audio::DeviceKind::Input => {
+                if d.is_loopback {
+                    "[明确内录]"
+                } else if d.loopback_hint {
+                    "[疑似内录]"
+                } else {
+                    "[麦克风]"
+                }
+            }
         };
         println!(
-            "  [{:>2}] {:<10} {:<44} {}ch / {}Hz",
-            d.index, tag, trunc(&d.name, 44), d.channels, d.default_rate
+            "  [{:>2}] {:<10} {:<46} {}ch / {}Hz",
+            d.index, tag, trunc(&d.name, 46), d.channels, d.default_rate
         );
     }
 
@@ -148,35 +153,71 @@ fn main() {
 
     // 结论与建议
     let openable: Vec<&audio::DeviceProbe> = probes.iter().filter(|p| p.ok).collect();
-    let strong: Vec<_> = openable.iter().filter(|p| p.is_loopback).collect();
-    let weak: Vec<_> = openable.iter().filter(|p| !p.is_loopback && p.loopback_hint).collect();
+    let sys: Vec<_> = openable
+        .iter()
+        .filter(|p| p.kind == audio::DeviceKind::Loopback)
+        .collect();
+    let strong: Vec<_> = openable
+        .iter()
+        .filter(|p| p.kind == audio::DeviceKind::Input && p.is_loopback)
+        .collect();
+    let weak: Vec<_> = openable
+        .iter()
+        .filter(|p| p.kind == audio::DeviceKind::Input && !p.is_loopback && p.loopback_hint)
+        .collect();
 
     println!("\n【结论】");
     if openable.is_empty() {
-        println!("  ❌ 没有任何输入设备能成功打开。请查看上方原始错误：");
+        println!("  ❌ 没有任何采集源能成功打开。请查看上方原始错误：");
         println!("     · 权限被拒 → 检查系统「麦克风隐私设置」是否允许桌面应用");
         println!("     · 设备被独占 → 关闭正在占用音频的软件（会议/播放器/录音机）");
         println!("     · 采样格式/缓冲不支持 → 已自动尝试多格式多配置，仍失败说明驱动异常");
+    } else if !sys.is_empty() {
+        let names: Vec<_> = sys
+            .iter()
+            .map(|p| format!("[{}] {}", p.index, p.name))
+            .collect();
+        println!("  ✅ 找到并成功打开系统内录源（WASAPI 回环）：");
+        for n in &names {
+            println!("     {n}");
+        }
+        println!("     在主界面「系统内录」下拉里选择它，即可录制电脑正在播放的声音。");
     } else if !strong.is_empty() {
-        let names: Vec<_> = strong.iter().map(|p| format!("[{}] {}", p.index, p.name)).collect();
+        let names: Vec<_> = strong
+            .iter()
+            .map(|p| format!("[{}] {}", p.index, p.name))
+            .collect();
         println!("  ✅ 找到可打开的明确内录设备：{}", names.join("、"));
         println!("     在主界面「系统内录」下拉中选择它即可。");
     } else if !weak.is_empty() {
-        let names: Vec<_> = weak.iter().map(|p| format!("[{}] {}", p.index, p.name)).collect();
+        let names: Vec<_> = weak
+            .iter()
+            .map(|p| format!("[{}] {}", p.index, p.name))
+            .collect();
         println!("  🔶 未识别到标准内录设备，但以下设备命名像「输出/回环」且可打开：");
         println!("     {}", names.join("、"));
-        println!("     主界面内录下拉已列出全部输入设备，可手动选它并用 --level 验证是否有声音。");
+        println!("     主界面内录下拉已列出全部设备，可手动选它并用 --level 验证是否有声音。");
     } else {
-        println!("  ⚠️ 设备都能打开，但没有内录/回环设备。下面是启用系统内录的方法。");
+        println!("  ⚠️ 输入设备都能打开，但没有任何可用的系统内录源。");
     }
 
-    println!("\n【Windows 启用系统内录】");
-    println!("  1. 右下角音量图标 → 右键「声音」→「录制」选项卡");
-    println!("  2. 空白处右键 → 勾选「显示禁用的设备」");
-    println!("  3. 启用「立体声混音 / Stereo Mix」（若无此项，用 WASAPI 回环设备，");
-    println!("     即名称类似「扬声器 (Realtek…)」的输入设备，主界面可手动选）");
-    println!("  4. 回到应用点「↻ 刷新设备」，再跑本工具确认");
-    println!("  提示：若中文乱码，请在 Windows Terminal / PowerShell 7 运行，或先执行 chcp 65001");
+    #[cfg(windows)]
+    {
+        println!("\n【Windows 系统内录说明】");
+        println!("  · 本应用已内置 WASAPI 回环，直接把「扬声器/耳机」枚举为系统内录源，");
+        println!("    无需启用「立体声混音」（Realtek 新版驱动通常已移除该选项）。");
+        println!("  · 若上面某个「（系统声音）」设备 FAIL，常见原因：");
+        println!("    1) 该设备被其它程序以「独占模式」占用 → 关闭它或改用另一输出设备；");
+        println!("    2) 该设备当前无活动音频会话 → 先播放一段声音再测；");
+        println!("    3) 蓝牙耳机在免提(HFP)模式下不支持回环 → 切到立体声(A2DP)或换有线。");
+        println!("  · 提示：若中文乱码，请在 Windows Terminal / PowerShell 7 运行，或先 chcp 65001。");
+    }
+    #[cfg(not(windows))]
+    {
+        println!("\n【系统内录说明】");
+        println!("  · Linux：选择带 `.monitor` 的设备（PulseAudio/PipeWire 提供）；");
+        println!("  · macOS：安装 BlackHole / Soundflower 等多声道虚拟声卡。");
+    }
     println!("================================================================");
     pause_for_double_click(json_mode);
 }
