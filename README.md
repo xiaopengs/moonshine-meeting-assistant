@@ -5,7 +5,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)](#)
 [![Tauri](https://img.shields.io/badge/Tauri-2-blue.svg)](https://tauri.app)
-[![Rust](https://img.shields.io/badge/Rust-1.7x-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-yellow.svg)](https://www.python.org)
 
 **开源免费 · 本地优先 · 云端 BYOK 可插拔 · 隐私零风险**
@@ -33,6 +33,7 @@
 | 🔒 隐私可控 | 本地引擎数据零上传；云端引擎仅在显式选择时上传音频 |
 | ✨ AI 摘要 | 对接 OpenAI 兼容端点（本地 Ollama / LM Studio），生成结构化纪要 |
 | 📁 一键导出 | Markdown / SRT 字幕 / 纯文本，含时间戳与说话人标记 |
+| 📖 内置使用指南 | 界面内「接入 / 编译 / 部署」三 Tab 指引，一键打开完整文档 |
 
 ---
 
@@ -52,14 +53,34 @@
 
 ---
 
+## 📚 文档导航
+
+| 文档 | 内容 | 适合谁 |
+|---|---|---|
+| [☁️ 接入指导](doc/接入指导.md) | 火山 / 腾讯 / 阿里控制台开通、取 Key、字段对照、测试连接、版本差异与排错 | 使用云 ASR |
+| [🛠️ 本地编译指导](doc/本地编译指导.md) | 全平台工具链、分层编译、`cargo tauri dev/build`、常见错误排查 | 开发者 |
+| [📦 部署指导](doc/部署指导.md) | 三种部署形态、打包产物、随包资源、离线/内网、升级回滚、验收清单 | 运维 / 分发 |
+| [🏛️ 架构设计](doc/ARCHITECTURE.md) | 模块划分、引擎抽象、数据流、技术选型 | 二次开发 |
+| [🔍 竞品调研](doc/竞品调研-20261026.md) | Meetily / VoiceStudio / MacParakeet 等选型依据 | 产品 / 选型 |
+| [PRD](doc/PRD.md) · [进度](doc/PROGRESS.md) · [UI 规范](doc/UI-SPEC-v2.md) | 产品定义与过程记录 | 项目成员 |
+
+> App 内点击标题栏「📖 使用指南」可直接查看接入 / 编译 / 部署三份要点，并一键跳转完整文档。
+
+---
+
 ## 🚀 快速上手
+
+> 完整步骤见 [本地编译指导](doc/本地编译指导.md)；分发与安装见 [部署指导](doc/部署指导.md)。
 
 ### 环境要求
 
-- **Rust** ≥ 1.70（[rustup](https://rustup.rs)）
-- **Node.js** ≥ 18（Tauri CLI 依赖）
-- **Python** ≥ 3.9 + 至少一个转写引擎依赖
-- **系统库**（Linux 需 `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libasound2-dev`）
+| 依赖 | 要求 | 说明 |
+|---|---|---|
+| Rust | ≥ 1.75（stable） | ✅ 必需 |
+| Tauri CLI | 2.x | ✅ 运行/打包必需，通过 `cargo install` 安装 |
+| Node.js | **不需要** | 前端为零构建静态文件（`frontendDist: ../ui`），无 npm 依赖 |
+| Python | ≥ 3.9 | ⚠️ 仅本地引擎需要；**云 ASR 无需 Python** |
+| Linux 系统库 | `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libasound2-dev patchelf` | 完整列表见编译指导 |
 
 ### 安装
 
@@ -69,16 +90,19 @@ git clone https://github.com/xiaopengs/moonshine-meeting-assistant.git
 cd moonshine-meeting-assistant
 
 # 2. 安装 Tauri CLI
-cargo install tauri-cli --locked
+cargo install tauri-cli --version "^2" --locked
 
-# 3. 安装 Python 引擎依赖（默认 faster-whisper）
+# 3. 仅本地引擎需要：安装 Python 依赖（默认 faster-whisper）
+#    使用云 ASR 可跳过此步
 pip install -r python/requirements.txt
 ```
 
 ### 开发运行
 
 ```bash
-cargo tauri dev
+cargo check -p moonshine-core    # 最快验证：只编译核心库（无需 Tauri 系统依赖）
+cargo check --workspace          # 整仓检查
+cargo tauri dev                  # 启动应用
 ```
 
 ### 打包发布
@@ -107,7 +131,7 @@ cargo tauri build          # 按当前平台产出安装包（NSIS / DMG / AppIm
 | **腾讯云** | 实时语音识别（大模型 2.0） | HMAC-SHA1 签名 | AppID + SecretId + SecretKey |
 | **阿里云** | 智能语音交互（NLS） | POP 签名 + CreateToken | AccessKey ID + AccessKey Secret + AppKey |
 
-在 App 内「转写引擎」面板切换到云引擎，点击「云 ASR 凭证设置」填入 Key 即可使用，支持「测试连接」验证凭证；凭证仅保存在本机，不上传。
+在 App 内「转写引擎」面板切换到云引擎，点击「🔑 云 ASR 凭证设置」填入 Key，用「测试连接」验证；凭证仅保存在本机，不上传。**逐家控制台开通步骤、字段对照、版本差异与排错见 [接入指导](doc/接入指导.md)。**
 
 引擎在 App 内「转写引擎」面板切换；本地引擎首次使用会自动下载对应模型。
 
@@ -146,10 +170,10 @@ moonshine-meeting-assistant/
 │           └── session.rs      # 会话聚合
 ├── src-tauri/                  # Tauri 2 应用壳
 │   ├── src/{main.rs,lib.rs}    # 命令 + 事件 + 转录运行时
-│   ├── tauri.conf.json
+│   ├── tauri.conf.json         # 含 bundle.resources（随包携带 Python 引擎服务）
 │   └── capabilities/
-├── ui/                         # 前端（v2.0 设计系统，无框架）
-│   ├── index.html
+├── ui/                         # 前端（v2.0 设计系统，零构建）
+│   ├── index.html              # 三栏布局 + ASR 设置 / 使用指南弹窗
 │   ├── styles.css
 │   └── main.js
 ├── python/
@@ -157,8 +181,11 @@ moonshine-meeting-assistant/
 │   └── requirements.txt
 ├── doc/
 │   ├── ARCHITECTURE.md         # 架构设计（重构版）
+│   ├── 接入指导.md             # 云 ASR 接入（BYOK）
+│   ├── 本地编译指导.md         # 全平台编译与排错
+│   ├── 部署指导.md             # 打包 / 分发 / 验收
 │   ├── 竞品调研-20261026.md    # 竞品调研
-│   ├── PRD.md / PROGRESS.md / UI-SPEC-v2.md
+│   └── PRD.md / PROGRESS.md / UI-SPEC-v2.md
 ├── assets/
 │   ├── architecture.svg        # 整体架构图（数据流视图）
 │   └── icon.*                  # 图标资源

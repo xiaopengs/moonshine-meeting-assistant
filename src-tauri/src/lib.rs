@@ -70,11 +70,39 @@ fn parse_engine_kind(s: &str) -> Result<EngineKind, String> {
     }
 }
 
+/// 定位本地引擎脚本。
+///
+/// 优先级：环境变量 > 开发目录 > 安装后的资源目录（由 `bundle.resources` 复制）。
 fn default_engine_script() -> PathBuf {
     if let Ok(p) = std::env::var("MOONSHINE_ENGINE_SCRIPT") {
         return PathBuf::from(p);
     }
-    PathBuf::from("python/engine_service.py")
+
+    // 开发模式：工作目录为项目根
+    let dev = PathBuf::from("python/engine_service.py");
+    if dev.is_file() {
+        return dev.clone();
+    }
+
+    // 安装后：可执行文件同目录 / Tauri 资源目录（不同平台路径不同）
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidates = [
+                dir.join("resources/python/engine_service.py"),
+                dir.join("resources/_up_/python/engine_service.py"),
+                dir.join("python/engine_service.py"),
+                dir.join("../Resources/python/engine_service.py"),
+                dir.join("../Resources/_up_/python/engine_service.py"),
+            ];
+            for candidate in candidates {
+                if candidate.is_file() {
+                    return candidate;
+                }
+            }
+        }
+    }
+
+    dev
 }
 
 /// ASR 凭证存储路径（app 配置目录）。
@@ -202,7 +230,10 @@ fn get_asr_providers() -> serde_json::Value {
                 { "id": "bigmodel", "name": "豆包流式语音识别 2.0（中文）" },
                 { "id": "bigmodel_en", "name": "豆包流式（英语）" }
             ],
-            "console": "https://console.volcengine.com/speech/app"
+            "console": "https://console.volcengine.com/speech/app",
+            "consoleLabel": "火山引擎 · 语音技术控制台",
+            "docUrl": "https://www.volcengine.com/docs/6561/1354869",
+            "keyGuide": "创建应用并勾选「流式语音识别大模型」，取得 APP ID 与 AK/SK；新版控制台仅提供 App Key 时需按接入指导适配"
         },
         {
             "id": "tencent",
@@ -214,10 +245,13 @@ fn get_asr_providers() -> serde_json::Value {
                 { "key": "secretKey", "label": "SecretKey", "placeholder": "腾讯云 SecretKey", "type": "password" }
             ],
             "models": [
-                { "id": "16k_zh_en_2.0", "name": "大模型 2.0（中英+方言）" },
-                { "id": "16k_zh_en_speaker_2.0", "name": "大模型 2.0（含说话人分离）" }
+                { "id": "16k_zh_en", "name": "中英大模型 2.0（会议推荐）" },
+                { "id": "16k_zh_large", "name": "大模型增强版" }
             ],
-            "console": "https://console.cloud.tencent.com/asr"
+            "console": "https://console.cloud.tencent.com/asr",
+            "consoleLabel": "腾讯云 · 语音识别控制台 / API 密钥管理",
+            "docUrl": "https://cloud.tencent.com/document/product/1093/131127",
+            "keyGuide": "开通语音识别后，在「API 密钥管理」新建密钥，取得 AppID、SecretId、SecretKey；模型名可在主界面手动填写"
         },
         {
             "id": "alicloud",
@@ -233,7 +267,10 @@ fn get_asr_providers() -> serde_json::Value {
                 { "id": "domain-audio-domain", "name": "音视频领域（中文）" },
                 { "id": "customer-service-domain", "name": "客服领域（中文）" }
             ],
-            "console": "https://nls-portal.console.aliyun.com/"
+            "console": "https://nls-portal.console.aliyun.com/",
+            "consoleLabel": "阿里云 · 智能语音交互控制台",
+            "docUrl": "https://help.aliyun.com/knowledge_detail/72214.html",
+            "keyGuide": "开通 NLS → 创建 AccessKey → 创建项目取 Appkey；模型主要由项目绑定，请在「项目功能配置」选择 16 kHz 实时识别模型"
         }
     ])
 }
@@ -265,6 +302,47 @@ fn test_asr_connection(app: AppHandle, engine: String, model: String) -> Result<
     }
     let creds = load_remote_credentials(&app)?;
     engine::remote::test_connection(kind, &creds, &model)
+}
+
+/// 在系统默认浏览器打开白名单内的帮助文档 / 云控制台链接。
+///
+/// 只接受预置前缀，避免前端传入任意 URL 造成钓鱼或命令注入风险。
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    const ALLOWED: &[&str] = &[
+        "https://github.com/xiaopengs/moonshine-meeting-assistant",
+        "https://console.volcengine.com/",
+        "https://www.volcengine.com/",
+        "https://console.cloud.tencent.com/",
+        "https://cloud.tencent.com/",
+        "https://nls-portal.console.aliyun.com/",
+        "https://help.aliyun.com/",
+    ];
+    if !ALLOWED.iter().any(|prefix| url.starts_with(prefix)) {
+        return Err("不允许打开该链接（仅支持内置文档与云控制台）".to_string());
+    }
+    open_in_browser(&url).map_err(|e| format!("打开链接失败: {e}"))
+}
+
+/// 跨平台调用系统浏览器（零额外依赖）。
+fn open_in_browser(url: &str) -> std::io::Result<()> {
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let _ = url;
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(url).spawn()?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(url).spawn()?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -510,6 +588,7 @@ pub fn run() {
             save_asr_settings,
             load_asr_settings,
             test_asr_connection,
+            open_external_url,
         ])
         .run(tauri::generate_context!())
         .expect("Moonshine 会议助手启动失败");

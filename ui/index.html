@@ -17,6 +17,7 @@
   </div>
   <div class="titlebar-spacer"></div>
   <div class="titlebar-right">
+    <button class="titlebar-help" id="btnHelp" title="使用指南：接入 / 编译 / 部署">📖 使用指南</button>
     <div class="status-pill" id="statusPill">
       <div class="dot" id="statusDot"></div>
       <span id="statusText">待机</span>
@@ -176,6 +177,7 @@
       <div class="shortcut-hint">
         <kbd>⌘R</kbd> 开始 &nbsp;<kbd>⌘S</kbd> 停止 &nbsp;<kbd>⌘E</kbd> 导出
       </div>
+      <button class="help-link-btn" id="btnHelpSide">📖 接入 / 编译 / 部署指南</button>
     </div>
 
     <div id="envAlert"></div>
@@ -283,7 +285,7 @@
       <button class="modal-close" id="asrModalClose" aria-label="关闭">✕</button>
     </div>
     <div class="modal-body">
-      <p class="modal-hint">选择语音识别服务商并填入 API Key（凭证仅保存在本机，不上传）</p>
+      <p class="modal-hint">选择服务商并填入 API Key（凭证仅存本机，不上传）。<a href="#" id="asrGuideLink">查看接入指导 ↗</a></p>
       <div class="asr-provider-list" id="asrProviderList"></div>
       <div id="asrFields"></div>
     </div>
@@ -291,6 +293,27 @@
       <span class="asr-test-result" id="asrTestResult"></span>
       <button class="asr-btn" id="btnAsrTest">测试连接</button>
       <button class="asr-btn primary" id="btnAsrSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div class="modal-backdrop" id="helpModal" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2>📖 使用指南</h2>
+      <button class="modal-close" id="helpModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="help-tabs" id="helpTabs">
+      <button class="help-tab active" data-tab="access">☁️ 接入指导</button>
+      <button class="help-tab" data-tab="build">🛠️ 本地编译</button>
+      <button class="help-tab" data-tab="deploy">📦 部署指导</button>
+    </div>
+    <div class="modal-body help-body" id="helpBody"></div>
+    <div class="modal-foot">
+      <span class="asr-test-result" id="helpHint">完整文档位于仓库 doc/ 目录</span>
+      <button class="asr-btn" id="btnHelpClose">关闭</button>
+      <button class="asr-btn primary" id="btnHelpDoc">查看完整文档 ↗</button>
     </div>
   </div>
 </div>

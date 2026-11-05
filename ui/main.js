@@ -64,6 +64,16 @@ const els = {
   btnAsrTest: $('btnAsrTest'),
   btnAsrSave: $('btnAsrSave'),
   asrModalClose: $('asrModalClose'),
+  asrGuideLink: $('asrGuideLink'),
+  btnHelp: $('btnHelp'),
+  btnHelpSide: $('btnHelpSide'),
+  helpModal: $('helpModal'),
+  helpTabs: $('helpTabs'),
+  helpBody: $('helpBody'),
+  helpHint: $('helpHint'),
+  btnHelpClose: $('btnHelpClose'),
+  btnHelpDoc: $('btnHelpDoc'),
+  helpModalClose: $('helpModalClose'),
 };
 
 // ============================================================
@@ -436,6 +446,127 @@ async function generateSummary() {
 }
 
 // ============================================================
+// HELP / GUIDES
+// ============================================================
+const REPO = 'https://github.com/xiaopengs/moonshine-meeting-assistant';
+const GUIDE_URLS = {
+  access: `${REPO}/blob/main/doc/接入指导.md`,
+  build: `${REPO}/blob/main/doc/本地编译指导.md`,
+  deploy: `${REPO}/blob/main/doc/部署指导.md`,
+};
+let HELP_TAB = 'access';
+
+async function openExternal(url) {
+  try {
+    await invoke('open_external_url', { url });
+  } catch (e) {
+    addLog('[WARN] 打开链接失败: ' + e, 'warn');
+  }
+}
+
+const HELP_CONTENT = {
+  access: {
+    title: '☁️ 云 ASR 接入指导',
+    lead: '云端 ASR 采用 BYOK 模式：在云控制台开通服务并填入 Key 即可用，<b>无需 Python 与本地模型</b>。选择云引擎后，16 kHz PCM 音频会实时上传至所选服务商。',
+    steps: [
+      ['开通服务并创建应用', '火山：语音技术控制台创建应用并勾选「流式语音识别大模型」；腾讯：开通语音识别并在「API 密钥管理」新建密钥；阿里：开通 NLS 并创建项目。'],
+      ['获取凭证', '火山 <code>AK / SK + APP ID</code>；腾讯 <code>AppID / SecretId / SecretKey</code>；阿里 <code>AccessKey ID / Secret + 项目 Appkey</code>。'],
+      ['在 App 中填写', '侧栏选择云引擎 →「🔑 云 ASR 凭证设置」→ 选服务商 → 填 Key → 保存。凭证仅存本机 <code>asr-settings.json</code>。'],
+      ['验证', '点「测试连接」：火山 / 腾讯做 WebSocket 握手，阿里验证 CreateToken；通过后再录 30 秒真实音频做端到端确认。'],
+      ['排错', '鉴权失败先核对控制台版本差异（火山新旧版）、Key 是否含空格、系统时间是否准确；模型名可在主界面手动填写。'],
+    ],
+    code: {
+      label: '凭证文件位置（app_config_dir）',
+      lines: 'Windows  %APPDATA%\\com.moonshine.meeting-assistant\\\nmacOS    ~/Library/Application Support/com.moonshine.meeting-assistant/\nLinux    ~/.config/com.moonshine.meeting-assistant/',
+    },
+    tips: [
+      '三家按识别时长 / 并发计费，双路采集占用 2 路并发',
+      '火山新版控制台仅提供 App Key 时需按完整文档适配鉴权方式',
+      '涉密会议请改用本地引擎（音频零上传）',
+    ],
+    doc: '接入指导.md',
+  },
+  build: {
+    title: '🛠️ 本地编译指导',
+    lead: '前端是<b>零构建静态文件</b>，不需要 Node / npm；云 ASR 引擎也不需要 Python。只编译核心库时甚至不需要 WebKitGTK。',
+    steps: [
+      ['安装工具链', 'Rust stable ≥ 1.75；Linux 另需 WebKitGTK / GTK / ALSA 等系统库（见下方命令）；macOS 装 Xcode CLT；Windows 装 MSVC 生成工具 + WebView2。'],
+      ['只编译核心库（最快）', '<code>cargo check -p moonshine-core</code>，含三家云 ASR 签名与 WebSocket 代码，不依赖 Tauri 系统库。'],
+      ['整仓检查', '<code>cargo check --workspace</code> 与 <code>cargo clippy --workspace</code>。'],
+      ['安装 CLI 并运行', '<code>cargo install tauri-cli --version "^2" --locked</code> → <code>cargo tauri dev</code>。'],
+      ['打包', '<code>cargo tauri build</code>，产物位于 <code>target/release/bundle/</code>（NSIS / DMG / AppImage·deb）。'],
+    ],
+    code: {
+      label: 'Linux（Ubuntu / Debian）系统依赖',
+      lines: 'sudo apt-get install -y build-essential pkg-config \\\n  libwebkit2gtk-4.1-dev libgtk-3-dev \\\n  libayatana-appindicator3-dev librsvg2-dev \\\n  libasound2-dev libssl-dev patchelf',
+    },
+    tips: [
+      '本地引擎需 pip install -r python/requirements.txt',
+      '模型下载慢可设 HF_ENDPOINT=https://hf-mirror.com',
+      '打包后脚本路径可用 MOONSHINE_ENGINE_SCRIPT 覆盖',
+    ],
+    doc: '本地编译指导.md',
+  },
+  deploy: {
+    title: '📦 部署指导',
+    lead: '三种部署形态按隐私与运维成本选择，<b>切换引擎无需重装</b>。',
+    steps: [
+      ['A 纯本地（默认）', '装 Python + 引擎依赖 + 预置模型，音频零上传，适合涉密 / 内网环境。'],
+      ['B 云 ASR（BYOK）', '免 Python 与模型，只需填 Key；需实时出网，音频上传至所选厂商。'],
+      ['C 混合', '日常用云引擎，敏感会议切换本地引擎。'],
+      ['随包资源', '<code>bundle.resources</code> 会把 <code>python/engine_service.py</code> 与 requirements.txt 打进安装包；运行时按「环境变量 → 开发目录 → 资源目录」顺序查找脚本。'],
+      ['系统内录', 'Windows 启用「立体声混音」；macOS 需虚拟声卡（BlackHole 等）；Linux 用 PulseAudio monitor 设备。'],
+      ['验收', '设备枚举、30 秒录音、导出 MD/SRT/TXT、长会稳定性逐项确认。'],
+    ],
+    code: {
+      label: '云 ASR 出网域名白名单（WebSocket / HTTPS 443）',
+      lines: 'openspeech.bytedance.com\nasr.cloud.tencent.com\nnls-meta.cn-shanghai.aliyuncs.com\nnls-gateway-cn-shanghai.aliyuncs.com',
+    },
+    tips: [
+      'macOS 分发需 Developer ID 签名 + 公证，Windows 建议代码签名',
+      '凭证位于用户配置目录，覆盖安装不会被覆盖',
+      '当前版本尚未在真机打包 / 真实云 Key 联调，请按验收清单确认',
+    ],
+    doc: '部署指导.md',
+  },
+};
+
+function renderHelp() {
+  const c = HELP_CONTENT[HELP_TAB];
+  const steps = c.steps.map((s, i) => `
+    <div class="help-step">
+      <div class="help-step-num">${i + 1}</div>
+      <div>
+        <div class="help-step-title">${escHtml(s[0])}</div>
+        <div class="help-step-desc">${s[1]}</div>
+      </div>
+    </div>`).join('');
+  const tips = c.tips.map((t) => `<li>${escHtml(t)}</li>`).join('');
+  els.helpBody.innerHTML = `
+    <div class="help-lead">${c.lead}</div>
+    <div class="help-steps">${steps}</div>
+    <div class="help-code-label">${escHtml(c.code.label)}</div>
+    <pre class="help-code">${escHtml(c.code.lines)}</pre>
+    <div class="help-section-title">注意事项</div>
+    <ul class="help-tips">${tips}</ul>
+  `;
+  els.helpHint.textContent = '完整文档：doc/' + c.doc;
+  els.helpTabs.querySelectorAll('.help-tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === HELP_TAB);
+  });
+}
+
+function openHelp(tab) {
+  if (tab) HELP_TAB = tab;
+  renderHelp();
+  els.helpModal.style.display = 'flex';
+}
+
+function closeHelp() {
+  els.helpModal.style.display = 'none';
+}
+
+// ============================================================
 // CLOUD ASR SETTINGS
 // ============================================================
 let ASR_PROVIDERS = [];
@@ -513,13 +644,27 @@ function renderAsrFields(providerId) {
   const models = p.models.map((m) => `<option value="${m.id}" ${model === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
   els.asrFields.innerHTML = `
     <h4 class="asr-section-title">${p.name} 配置</h4>
+    <div class="asr-guide-box">
+      <div class="asr-guide-title">🔑 ${escHtml(p.name)} 取 Key 指引</div>
+      <p>${escHtml(p.keyGuide || '在服务商控制台开通语音识别并创建凭证')}</p>
+      <div class="asr-guide-links">
+        <button type="button" class="link-btn" data-open-url="${escHtml(p.console)}">${escHtml(p.consoleLabel || '打开控制台')} ↗</button>
+        ${p.docUrl ? `<button type="button" class="link-btn" data-open-url="${escHtml(p.docUrl)}">官方文档 ↗</button>` : ''}
+        <button type="button" class="link-btn" data-open-url="${escHtml(GUIDE_URLS.access)}">接入指导 ↗</button>
+      </div>
+    </div>
     ${fields}
     <label class="asr-field">
       <span class="asr-field-label">识别模型</span>
       <select data-asr-model>${models}</select>
     </label>
-    <p class="asr-help">💡 在 <a href="${p.console}" target="_blank" rel="noopener">${p.name}控制台</a> 开通语音识别并创建应用获取 Key</p>
   `;
+  els.asrFields.querySelectorAll('[data-open-url]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.openUrl;
+      if (url) openExternal(url);
+    });
+  });
 }
 
 function gatherAsrCreds(providerId) {
@@ -591,7 +736,7 @@ const ENGINE_DEFAULTS = {
   moonshine: { model: 'small_streaming', lang: 'en', remote: false },
   funasr: { model: 'paraformer-zh', lang: 'zh', remote: false },
   volcengine: { model: 'bigmodel', lang: 'zh-CN', remote: true },
-  tencent: { model: '16k_zh_en_2.0', lang: 'zh-CN', remote: true },
+  tencent: { model: '16k_zh_en', lang: 'zh-CN', remote: true },
   alicloud: { model: 'domain-meeting-domain', lang: 'zh-CN', remote: true },
 };
 els.engineSelect.addEventListener('change', () => {
@@ -600,7 +745,13 @@ els.engineSelect.addEventListener('change', () => {
   els.langInput.value = d.lang;
   els.btnAsrSettings.style.display = d.remote ? '' : 'none';
   if (d.remote) {
-    setDeviceStatus(els.engineStatus, 'warn', '云端引擎：请先配置 API Key');
+    const saved = (ASR_SETTINGS && ASR_SETTINGS[els.engineSelect.value]) || {};
+    const hasCreds = Object.values(saved).some((v) => typeof v === 'string' && v.trim().length > 0);
+    setDeviceStatus(
+      els.engineStatus,
+      hasCreds ? 'ok' : 'warn',
+      hasCreds ? '已保存凭证，建议先「测试连接」' : '请点击「🔑 云 ASR 凭证设置」填入 Key'
+    );
   } else {
     setDeviceStatus(els.engineStatus, 'ok', '引擎已切换，模型加载将在首次录制时进行');
   }
@@ -621,6 +772,20 @@ els.btnAsrTest.addEventListener('click', testAsrConnection);
 els.btnAsrSave.addEventListener('click', saveAsrSettings);
 els.asrModalClose.addEventListener('click', closeAsrSettings);
 els.asrModal.addEventListener('click', (e) => { if (e.target === els.asrModal) closeAsrSettings(); });
+els.asrGuideLink.addEventListener('click', (e) => { e.preventDefault(); openExternal(GUIDE_URLS.access); });
+
+els.btnHelp.addEventListener('click', () => openHelp());
+els.btnHelpSide.addEventListener('click', () => openHelp());
+els.helpModalClose.addEventListener('click', closeHelp);
+els.btnHelpClose.addEventListener('click', closeHelp);
+els.btnHelpDoc.addEventListener('click', () => openExternal(GUIDE_URLS[HELP_TAB]));
+els.helpModal.addEventListener('click', (e) => { if (e.target === els.helpModal) closeHelp(); });
+els.helpTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('.help-tab');
+  if (!btn) return;
+  HELP_TAB = btn.dataset.tab;
+  renderHelp();
+});
 
 let panelOpen = true;
 els.panelToggleBtn.addEventListener('click', () => {
@@ -636,7 +801,11 @@ document.addEventListener('keydown', (e) => {
   if (cmd && e.key === 'r') { e.preventDefault(); S.isRunning ? stopRecording() : startRecording(); }
   if (cmd && e.key === 's') { e.preventDefault(); if (S.isRunning) stopRecording(); }
   if (cmd && e.key === 'e') { e.preventDefault(); exportTranscript(); }
-  if (e.key === 'Escape' && S.isRunning) stopRecording();
+  if (e.key === 'Escape') {
+    if (els.helpModal.style.display !== 'none') { closeHelp(); return; }
+    if (els.asrModal.style.display !== 'none') { closeAsrSettings(); return; }
+    if (S.isRunning) stopRecording();
+  }
 });
 
 // ============================================================

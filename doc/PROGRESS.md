@@ -319,3 +319,35 @@ buffer 余量：~20ms
 - [ ] 长会稳定性（2 小时、断电恢复、内存占用）
 - [ ] Tauri 打包（Windows NSIS / macOS DMG / Linux AppImage）
 - [ ] 三家云 ASR 真实 Key 联调（火山/腾讯/阿里握手与流式识别）
+
+---
+
+## 2026-11-05 · 接入 / 编译 / 部署指导 + 界面更新
+
+**目标**：补齐上手文档链路，并把指引直接做进界面。
+
+**变更清单**：
+
+| 项 | 状态 |
+|---|---|
+| `doc/接入指导.md`（三家控制台开通、字段对照、测试连接、版本差异、排错） | ✅ 完成 |
+| `doc/本地编译指导.md`（全平台工具链、分层编译、排错表、验收清单） | ✅ 完成 |
+| `doc/部署指导.md`（三种部署形态、打包产物、随包资源、离线内网、升级回滚） | ✅ 完成 |
+| README 新增「文档导航」，修正 Node 非必需、Rust ≥1.75、云 ASR 免 Python | ✅ 完成 |
+| `tauri.conf.json` 增加 `bundle.resources`（随包携带 Python 引擎服务） | ✅ 完成 |
+| `default_engine_script()` 支持打包后资源目录查找（环境变量 > 开发目录 > 资源目录） | ✅ 完成 |
+| 后端 `open_external_url` 命令（白名单 URL + 跨平台系统浏览器） | ✅ 完成 |
+| `get_asr_providers()` 增加 `keyGuide` / `consoleLabel` / `docUrl` 元数据 | ✅ 完成 |
+| 腾讯模型下拉改为官方 `engine_model_type` 值，`legacy_model()` 改为透传 | ✅ 完成 |
+| 界面：标题栏「📖 使用指南」+ 三 Tab 帮助弹窗（接入/编译/部署） | ✅ 完成 |
+| 界面：ASR 设置弹窗增加取 Key 指引、控制台/官方文档/接入指导跳转 | ✅ 完成 |
+| 界面：Escape 优先关闭弹窗、云引擎凭证状态提示 | ✅ 完成 |
+| `cargo check` / `cargo clippy` / `node --check` 通过 | ✅ 完成 |
+
+**本次核实的关键事实**：
+- 火山引擎新版控制台为 Header 鉴权（`X-Api-App-Key` / `X-Api-Access-Key` 或单 `X-Api-Key`），当前实现为 URL HMAC 签名，使用新版凭证需按接入指导适配。
+- 腾讯云 `engine_model_type` 官方值为 `16k_zh_en` / `16k_zh_large` 等，旧预设为历史命名，已改为透传。
+- 阿里云模型主要由项目 Appkey 绑定，不能仅靠 API 参数切换。
+- 前端为零构建静态资源，Node.js 并非必需。
+
+**待真机验证**：沿用上节清单（三家云 Key 联调、真机打包、双路音频）。

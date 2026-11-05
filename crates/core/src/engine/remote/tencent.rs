@@ -13,13 +13,15 @@ use super::{
     RemoteSession,
 };
 
-/// 旧版引擎名 → V2 大模型引擎名。
+/// 模型名透传：官方 `engine_model_type` 值原样使用，空值补默认。
+///
+/// 保留该函数的意义是提供单一默认值入口；不做历史值重写，
+/// 以便使用者在主界面直接填写控制台/文档给出的有效模型名。
 fn legacy_model(model: &str) -> String {
-    match model {
-        "16k_zh_large" => "16k_zh_en_2.0".to_string(),
-        "16k_zh_large_speaker" => "16k_zh_en_speaker_2.0".to_string(),
-        "" => "16k_zh_en_2.0".to_string(),
-        m => m.to_string(),
+    if model.is_empty() {
+        "16k_zh_en".to_string()
+    } else {
+        model.to_string()
     }
 }
 

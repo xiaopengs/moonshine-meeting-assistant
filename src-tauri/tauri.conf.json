@@ -34,6 +34,10 @@
     "icon": [
       "icons/icon.png",
       "icons/icon.svg"
+    ],
+    "resources": [
+      "../python/engine_service.py",
+      "../python/requirements.txt"
     ]
   }
 }
